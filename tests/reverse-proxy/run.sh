@@ -139,8 +139,14 @@ pass "the app logs the visitor's address from X-Forwarded-For ($logged)"
 
 echo "== The app gets a new address, as an update gives it"
 old_ip="$(app_ip)"
-compose up --detach --no-deps --force-recreate --wait --wait-timeout 180 web-terminal-server
+app_net="$(docker inspect --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' \
+  "$(compose ps --quiet web-terminal-server)")"
+compose rm --stop --force web-terminal-server
+# Docker hands a freed address straight back, so hold the old one while the app starts again.
+holder="$(docker run --detach --rm --network "$app_net" --ip "$old_ip" curlimages/curl:8.22.0 sleep 600)"
+compose up --detach --no-deps --wait --wait-timeout 180 web-terminal-server
 new_ip="$(app_ip)"
+docker rm --force "$holder" >/dev/null
 [ -n "$new_ip" ] && [ "$new_ip" != "$old_ip" ] \
   || die "the recreated app has address '$new_ip', the same as before, so this check proves nothing"
 wait_for 60 "the proxy reaches the recreated app at its new address $new_ip" \

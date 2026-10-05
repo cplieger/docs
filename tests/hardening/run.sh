@@ -27,13 +27,13 @@ inspect() {
   docker inspect --format "$1" knell
 }
 # check_tmp_mount LINE passes when a /proc/<pid>/mounts line is the tmpfs the example asks for.
-# The kernel writes size=16m as size=16384k.
+# The kernel writes size=16m as size=16384k and omits the default mode=1777, so the mode is read with stat.
 check_tmp_mount() {
   local mountpoint type options want
   [ "$(wc -l <<<"$1")" -eq 1 ] || return 1
   read -r _ mountpoint type options _ <<<"$1"
   [ "$mountpoint" = /tmp ] && [ "$type" = tmpfs ] || return 1
-  for want in rw noexec nosuid nodev size=16384k mode=1777; do
+  for want in rw noexec nosuid nodev size=16384k; do
     case ",$options," in
       *",$want,"*) ;;
       *) return 1 ;;
@@ -60,6 +60,8 @@ expect "the tmpfs Docker was asked for" '{{json .HostConfig.Tmpfs}}' '{"/tmp":"r
 pid="$(inspect '{{.State.Pid}}')"
 tmp_mount="$(sudo awk '$2 == "/tmp"' "/proc/$pid/mounts")"
 check_tmp_mount "$tmp_mount" || die "/tmp inside the container is: ${tmp_mount:-not mounted}"
+tmp_mode="$(sudo stat --format %a "/proc/$pid/root/tmp")"
+[ "$tmp_mode" = 1777 ] || die "/tmp inside the container has mode $tmp_mode, want 1777"
 pass "/tmp inside the container is a 16 MiB tmpfs with noexec, nosuid, nodev and mode 1777"
 expect "the port binding" '{{json .HostConfig.PortBindings}}' '{"9190/tcp":[{"HostIp":"127.0.0.1","HostPort":"9190"}]}'
 
