@@ -1,0 +1,14 @@
+{
+  "domain_names": [
+    "app.example.com"
+  ],
+  "forward_scheme": "http",
+  "forward_host": "web-terminal-server",
+  "forward_port": 7681,
+  "allow_websocket_upgrade": true,
+  "block_exploits": true,
+  "caching_enabled": false,
+  "certificate_id": 0,
+  "ssl_forced": true,
+  "advanced_config": ""
+}

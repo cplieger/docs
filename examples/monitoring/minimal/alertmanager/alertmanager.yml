@@ -1,0 +1,12 @@
+# Sends every alert to one webhook. docs/monitoring.md shows Discord and email instead.
+route:
+  receiver: notify
+  group_by: [alertname, container]
+  group_wait: 30s  # waits this long to collect related alerts into one message
+  group_interval: 5m
+  repeat_interval: 4h  # reminds you again while an alert keeps firing
+
+receivers:
+  - name: notify
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url  # the file holds your webhook address on one line

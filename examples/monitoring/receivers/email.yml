@@ -1,0 +1,17 @@
+# Sends every alert by email. Save it as alertmanager/alertmanager.yml.
+# Put your mail account's password in alertmanager/smtp_password, on one line.
+route:
+  receiver: email
+  group_by: [alertname, container]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: email
+    email_configs:
+      - to: "you@example.com"
+        from: "alerts@example.com"
+        smarthost: "smtp.example.com:587"  # your mail provider's server and port
+        auth_username: "alerts@example.com"
+        auth_password_file: /etc/alertmanager/smtp_password

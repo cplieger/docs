@@ -1,0 +1,7 @@
+# A test runner cannot get a public certificate, so Caddy loads the example Caddyfile
+# through test.Caddyfile, which only switches the certificate to Caddy's own local one.
+services:
+  caddy:
+    command: ["caddy", "run", "--config", "/etc/caddy/test.Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - "${DOCS_ROOT}/tests/reverse-proxy/test.Caddyfile:/etc/caddy/test.Caddyfile:ro"

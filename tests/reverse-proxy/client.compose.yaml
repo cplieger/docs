@@ -1,0 +1,13 @@
+# Both passes. A test client on the proxy network with its own fixed address, so the checks
+# can require that exact address in X-Forwarded-For and in the app's log.
+services:
+  client:
+    image: python:3.14.6-alpine
+    command: ["sleep", "infinity"]
+    environment:
+      AUTH_PASSWORD: "${AUTH_PASSWORD}"
+    volumes:
+      - "${DOCS_ROOT}/tests/reverse-proxy/check.py:/check.py:ro"
+    networks:
+      proxy:
+        ipv4_address: "172.30.0.10"  # below ip_range, so no recreated container can take it

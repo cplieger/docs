@@ -1,0 +1,6 @@
+{
+	local_certs
+	skip_install_trust
+}
+
+import /etc/caddy/Caddyfile

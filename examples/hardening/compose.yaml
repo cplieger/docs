@@ -1,0 +1,38 @@
+# knell with every hardening option from docs/hardening.md. The values are knell's own.
+# Before you copy one to another image, read that image's docs/hardening.md.
+services:
+  knell:
+    image: ghcr.io/cplieger/knell:latest
+    container_name: knell
+    restart: unless-stopped
+
+    read_only: true  # nothing in the image can be changed while it runs
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777  # the one folder knell writes, for its health marker
+    cap_drop: [ALL]  # knell needs no Linux capabilities
+    security_opt:
+      - "no-new-privileges:true"  # no program inside can gain more rights than it started with
+    user: "65534:65534"  # the user the image already runs as, written down so it cannot change
+    mem_limit: 64m
+    pids_limit: 64
+    cpus: 0.5
+
+    environment:
+      BEATS: "nightly-backup:26h"  # one id:deadline pair per job you watch
+      NODE_NAME: "server-1"
+      BEAT_TOKEN_FILE: "/run/secrets/beat_token"  # knell reads the token from this file
+      DISCORD_WEBHOOK_URL_FILE: "/run/secrets/discord_webhook_url"
+    secrets:
+      - beat_token
+      - discord_webhook_url
+
+    ports:
+      - "127.0.0.1:9190:9190"  # this host only, see docs/hardening.md "Ports"
+
+secrets:
+  # Create both files before the first start. Then run "chmod 600 secrets/*" and
+  # "sudo chown 65534:65534 secrets/*", so only knell's user can read them.
+  beat_token:
+    file: ./secrets/beat_token
+  discord_webhook_url:
+    file: ./secrets/discord_webhook_url

@@ -1,0 +1,8 @@
+# Protocol pass. Swaps the app's image for the neutral test backend, which reports the
+# headers it receives and serves SSE, WebSocket and upload endpoints. No proxy setting changes.
+services:
+  web-terminal-server:
+    image: localhost/docs-test-backend
+    build:
+      context: "${DOCS_ROOT}/tests/reverse-proxy"
+      dockerfile: Dockerfile.backend

@@ -1,0 +1,49 @@
+# A single Loki for one host, based on the config the Loki image ships.
+# The ruler block is what turns log lines into alerts.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules  # Loki reads every file in /etc/loki/rules/fake
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://alertmanager:9093
+  enable_api: true
+
+# Loki keeps logs forever unless retention is on. These two blocks delete logs after 15 days.
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  delete_request_store: filesystem
+
+limits_config:
+  retention_period: 15d  # how long Loki keeps logs, raise it for a longer history
+
+analytics:
+  reporting_enabled: false  # stops Loki sending anonymous usage statistics to Grafana Labs

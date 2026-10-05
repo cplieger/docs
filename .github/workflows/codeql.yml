@@ -1,0 +1,23 @@
+# CodeQL static analysis. Uploads SARIF to the repo's Security tab and backs the
+# code-scanning branch-protection gate. Hand-maintained: this repo has no
+# go.mod, jsr.json or Dockerfile, so the sync does not deliver it. Renovate
+# bumps the pin through the `# v2` comment.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    uses: cplieger/ci/.github/workflows/codeql.yaml@51affb0eab0a80aa0711a6e7c7e0d1339e0c62f2 # v2

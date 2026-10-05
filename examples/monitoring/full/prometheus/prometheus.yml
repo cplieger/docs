@@ -1,0 +1,12 @@
+# Prometheus stores the metrics Alloy sends it and checks the metric alert rules.
+# It scrapes nothing itself, because Alloy does the scraping.
+global:
+  evaluation_interval: 1m
+
+rule_files:
+  - /etc/prometheus/rules/*.yaml  # put metric alert rule files in prometheus/rules
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]

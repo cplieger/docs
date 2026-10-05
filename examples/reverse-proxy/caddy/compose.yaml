@@ -1,0 +1,41 @@
+# web-terminal-server behind Caddy. See docs/reverse-proxy.md.
+services:
+  caddy:
+    image: caddy:2.11.6
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"  # needed to get and renew the certificate
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - "./Caddyfile:/etc/caddy/Caddyfile:ro"
+      - "caddy-data:/data"  # keeps the certificates
+      - "caddy-config:/config"
+    networks:
+      proxy:
+        ipv4_address: "172.30.0.2"  # a fixed address, so the app can trust it
+
+  web-terminal-server:
+    image: ghcr.io/cplieger/web-terminal-server:latest
+    container_name: web-terminal-server
+    restart: unless-stopped
+    init: true
+    environment:
+      AUTH_PASSWORD: "${AUTH_PASSWORD:?put AUTH_PASSWORD=<a long password> in .env}"
+      ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
+      TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
+    networks:
+      - proxy  # no ports line, so only the proxy can reach the app
+
+networks:
+  proxy:
+    name: proxy  # a fixed name, so an app's own compose file can join this network
+    ipam:
+      config:
+        - subnet: "172.30.0.0/24"  # pick another range if a network on this host already uses it
+          ip_range: "172.30.0.128/25"  # Docker gives other containers addresses from here
+
+volumes:
+  caddy-data:
+  caddy-config:

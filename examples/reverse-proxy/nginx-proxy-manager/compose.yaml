@@ -1,0 +1,36 @@
+# web-terminal-server behind Nginx Proxy Manager. See docs/reverse-proxy.md for the settings to enter.
+services:
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:2.16.0
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:81:81"  # the admin page, from this host only
+    volumes:
+      - "./data:/data"  # the proxy hosts you create and the admin account
+      - "./letsencrypt:/etc/letsencrypt"  # keeps the certificates
+    networks:
+      proxy:
+        ipv4_address: "172.30.0.2"  # a fixed address, so the app can trust it
+
+  web-terminal-server:
+    image: ghcr.io/cplieger/web-terminal-server:latest
+    container_name: web-terminal-server
+    restart: unless-stopped
+    init: true
+    environment:
+      AUTH_PASSWORD: "${AUTH_PASSWORD:?put AUTH_PASSWORD=<a long password> in .env}"
+      ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
+      TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
+    networks:
+      - proxy  # no ports line, so only the proxy can reach the app
+
+networks:
+  proxy:
+    name: proxy  # a fixed name, so an app's own compose file can join this network
+    ipam:
+      config:
+        - subnet: "172.30.0.0/24"  # pick another range if a network on this host already uses it
+          ip_range: "172.30.0.128/25"  # Docker gives other containers addresses from here

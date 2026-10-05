@@ -1,0 +1,45 @@
+# Fails when an example block in a guide no longer matches its file under
+# examples/, when a guide holds a code block that no file owns, or when an
+# example file is shown nowhere.
+name: Snippets
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "examples/**"
+      - "scripts/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - ".github/workflows/snippets.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "examples/**"
+      - "scripts/**"
+      - "README.md"
+      - "CONTRIBUTING.md"
+      - ".github/workflows/snippets.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: snippets-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the snippet checker
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Compare the guides with examples/
+        run: python3 scripts/snippets.py --check

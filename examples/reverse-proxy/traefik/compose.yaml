@@ -1,0 +1,42 @@
+# web-terminal-server behind Traefik. See docs/reverse-proxy.md.
+services:
+  traefik:
+    image: traefik:v3.7.13
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./traefik.yaml:/etc/traefik/traefik.yaml:ro"
+      - "./letsencrypt:/letsencrypt"  # keeps the certificates
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"  # lets Traefik read the labels below
+    networks:
+      proxy:
+        ipv4_address: "172.30.0.2"  # a fixed address, so the app can trust it
+
+  web-terminal-server:
+    image: ghcr.io/cplieger/web-terminal-server:latest
+    container_name: web-terminal-server
+    restart: unless-stopped
+    init: true
+    environment:
+      AUTH_PASSWORD: "${AUTH_PASSWORD:?put AUTH_PASSWORD=<a long password> in .env}"
+      ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
+      TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=7681"
+    networks:
+      - proxy  # no ports line, so only the proxy can reach the app
+
+networks:
+  proxy:
+    name: proxy  # a fixed name, so an app's own compose file can join this network
+    ipam:
+      config:
+        - subnet: "172.30.0.0/24"  # pick another range if a network on this host already uses it
+          ip_range: "172.30.0.128/25"  # Docker gives other containers addresses from here

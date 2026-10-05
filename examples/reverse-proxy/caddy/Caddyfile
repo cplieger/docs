@@ -1,0 +1,5 @@
+# Serves web-terminal-server at https://app.example.com. Caddy gets the certificate by itself.
+# WebSockets, live updates and the forwarded headers need no extra lines.
+app.example.com {
+	reverse_proxy web-terminal-server:7681
+}

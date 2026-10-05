@@ -1,0 +1,10 @@
+# Grafana loads every dashboard file in grafana/dashboards and checks the folder for changes.
+apiVersion: 1
+
+providers:
+  - name: dashboards
+    type: file
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards

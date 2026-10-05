@@ -1,0 +1,129 @@
+# Boots every example under examples/ on a clean runner and checks that it does
+# what its guide says. Each job runs one script under tests/.
+#
+# The reverse-proxy jobs run each proxy example three times. The protocol pass swaps
+# the app for a neutral test backend (tests/reverse-proxy/backend.py), because
+# no single real image reports the headers it receives or accepts an arbitrary
+# upload. The app pass runs the example unchanged with the real
+# web-terminal-server image, then recreates the app so it gets a new address, as
+# an update does. The last pass follows the guide's steps for moving the app
+# into its own compose project, examples/reverse-proxy/app. The checks run
+# from a test client with a fixed address on the
+# proxy network. Test-only compose files add services or supply a
+# test certificate and never change a proxy setting the guide shows. Nginx Proxy
+# Manager is set up through its API with the values the guide tells a reader to
+# enter, with a self-signed Custom Certificate in place of Let's Encrypt.
+#
+# Not a required check: an upstream image change can turn this red on a pull
+# request that did not cause it.
+name: Examples
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "examples/**"
+      - "tests/**"
+      - ".github/workflows/examples.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "examples/**"
+      - "tests/**"
+      - ".github/workflows/examples.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: examples-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  monitoring:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [minimal, full, receivers]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run tests/monitoring/${{ matrix.case }}.sh
+        env:
+          CASE: ${{ matrix.case }}
+        run: bash "tests/monitoring/$CASE.sh"
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: monitoring-${{ matrix.case }}-logs
+          path: tests/.out/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  images:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3
+      - name: Check signatures and SBOMs of published images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tests/images/verify.sh
+      - name: Validate the example Renovate config
+        run: |
+          # renovate: datasource=npm depName=renovate
+          VERSION=44.136.0
+          npx --yes --package "renovate@${VERSION}" -- renovate-config-validator --strict examples/images/renovate.json
+
+  hardening:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run tests/hardening/run.sh
+        run: bash tests/hardening/run.sh
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hardening-logs
+          path: tests/.out/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  reverse-proxy:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        proxy: [caddy, nginx, traefik, npm]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run tests/reverse-proxy/run.sh ${{ matrix.proxy }}
+        env:
+          PROXY: ${{ matrix.proxy }}
+        run: bash tests/reverse-proxy/run.sh "$PROXY"
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reverse-proxy-${{ matrix.proxy }}-logs
+          path: tests/.out/
+          if-no-files-found: ignore
+          retention-days: 7

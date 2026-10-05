@@ -1,0 +1,16 @@
+# registry-stats in its own folder, an app with metrics and a dashboard to try the full stack with.
+# It joins the monitoring network that the full stack creates, so Alloy can read its metrics.
+# Start the full stack first. See docs/monitoring.md.
+services:
+  registry-stats:
+    image: ghcr.io/cplieger/registry-stats:latest
+    container_name: registry-stats
+    restart: unless-stopped
+    environment:
+      GHCR_REPOS: "cplieger/registry-stats"  # counts the downloads of one public image
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    external: true  # created by the full stack's compose.yaml

@@ -1,0 +1,29 @@
+// Find every container on this host.
+discovery.docker "containers" {
+	host = "unix:///var/run/docker.sock"
+}
+
+// Name each log stream after its container. The shipped alert rules select on this "container" label.
+discovery.relabel "containers" {
+	targets = []
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+}
+
+// Read the logs of every container and send them to Loki.
+loki.source.docker "containers" {
+	host          = "unix:///var/run/docker.sock"
+	targets       = discovery.docker.containers.targets
+	relabel_rules = discovery.relabel.containers.rules
+	forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+	endpoint {
+		url = "http://loki:3100/loki/api/v1/push"
+	}
+}

@@ -1,0 +1,24 @@
+# web-terminal-server in its own folder, behind the proxy from any example in docs/reverse-proxy.md.
+# It joins the proxy network that the proxy's compose file creates, so start the proxy first.
+services:
+  web-terminal-server:
+    image: ghcr.io/cplieger/web-terminal-server:latest
+    container_name: web-terminal-server
+    restart: unless-stopped
+    init: true
+    environment:
+      AUTH_PASSWORD: "${AUTH_PASSWORD:?put AUTH_PASSWORD=<a long password> in .env}"
+      ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
+      TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
+    labels:  # only Traefik reads these, the other proxies ignore them
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=7681"
+    networks:
+      - proxy  # no ports line, so only the proxy can reach the app
+
+networks:
+  proxy:
+    external: true  # created by the proxy's compose.yaml

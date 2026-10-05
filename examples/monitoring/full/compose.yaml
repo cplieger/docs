@@ -1,0 +1,82 @@
+# Notifications, metrics and dashboards. This is the smallest stack plus Prometheus and Grafana.
+# Run it in the same folder, with the loki and alertmanager folders from the smallest stack.
+# See docs/monitoring.md for every step.
+services:
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: loki
+    restart: unless-stopped
+    command: "-config.file=/etc/loki/config.yaml"
+    volumes:
+      - "./loki/config.yaml:/etc/loki/config.yaml:ro"
+      - "./loki/rules:/etc/loki/rules:ro"  # put log alert rule files in loki/rules/fake
+      - "loki-data:/loki"
+    ports:
+      - "127.0.0.1:3100:3100"  # Loki has no login, so only this host can reach it
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      # Before the first start, create the secret file your alertmanager.yml names,
+      # such as alertmanager/webhook_url. docs/monitoring.md shows how.
+      - "./alertmanager:/etc/alertmanager:ro"
+      - "alertmanager-data:/alertmanager"
+    ports:
+      - "127.0.0.1:9093:9093"  # the Alertmanager page, from this host only
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    container_name: alloy
+    restart: unless-stopped
+    volumes:
+      - "./alloy/config.alloy:/etc/alloy/config.alloy:ro"
+      - "alloy-data:/var/lib/alloy/data"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"  # lets Alloy find containers and read their logs
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"  # how long Prometheus keeps metrics, raise it for a longer history
+      - "--web.enable-remote-write-receiver"  # lets Alloy send metrics in
+    volumes:
+      - "./prometheus:/etc/prometheus:ro"
+      - "prometheus-data:/prometheus"
+    ports:
+      - "127.0.0.1:9090:9090"  # Prometheus has no login, so only this host can reach it
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD__FILE: "/run/secrets/grafana_admin_password"
+    secrets:
+      - grafana_admin_password
+    volumes:
+      - "./grafana/provisioning:/etc/grafana/provisioning:ro"
+      - "./grafana/dashboards:/etc/grafana/dashboards:ro"  # put dashboard files here
+      - "grafana-data:/var/lib/grafana"
+    ports:
+      - "3000:3000"  # open Grafana from another device, it asks for a login
+
+# A fixed name, so an app's own compose file can join this network and Alloy can read its metrics.
+networks:
+  default:
+    name: monitoring
+
+secrets:
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password  # create it before the first start, see docs/monitoring.md
+
+volumes:
+  loki-data:
+  alertmanager-data:
+  alloy-data:
+  prometheus-data:
+  grafana-data:

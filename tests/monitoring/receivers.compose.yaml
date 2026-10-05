@@ -1,0 +1,16 @@
+# Test-only stack. Alertmanager loads the guide's Discord config unchanged and posts to a local test webhook.
+services:
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    volumes:
+      - "${RECEIVERS_DIR}:/etc/alertmanager:ro"
+    ports:
+      - "127.0.0.1:9093:9093"
+
+  sink:
+    image: python:3.14.6-alpine
+    command: ["python3", "/sink.py"]
+    volumes:
+      - "${DOCS_ROOT}/tests/sink.py:/sink.py:ro"
+    ports:
+      - "127.0.0.1:8080:8080"

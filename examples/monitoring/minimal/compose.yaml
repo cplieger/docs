@@ -1,0 +1,41 @@
+# Notifications only. Alloy reads the logs of every container on this host,
+# Loki stores them and checks the alert rules, and Alertmanager sends the alerts.
+# See docs/monitoring.md for every step.
+services:
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: loki
+    restart: unless-stopped
+    command: "-config.file=/etc/loki/config.yaml"
+    volumes:
+      - "./loki/config.yaml:/etc/loki/config.yaml:ro"
+      - "./loki/rules:/etc/loki/rules:ro"  # put alert rule files in loki/rules/fake
+      - "loki-data:/loki"
+    ports:
+      - "127.0.0.1:3100:3100"  # Loki has no login, so only this host can reach it
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      # Before the first start, create the secret file your alertmanager.yml names,
+      # such as alertmanager/webhook_url. docs/monitoring.md shows how.
+      - "./alertmanager:/etc/alertmanager:ro"
+      - "alertmanager-data:/alertmanager"
+    ports:
+      - "127.0.0.1:9093:9093"  # the Alertmanager page, from this host only
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    container_name: alloy
+    restart: unless-stopped
+    volumes:
+      - "./alloy/config.alloy:/etc/alloy/config.alloy:ro"
+      - "alloy-data:/var/lib/alloy/data"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"  # lets Alloy find containers and read their logs
+
+volumes:
+  loki-data:
+  alertmanager-data:
+  alloy-data:

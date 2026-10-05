@@ -1,0 +1,7 @@
+# App pass. Adds a test client on the proxy network to reach the app directly.
+services:
+  probe:
+    image: curlimages/curl:8.22.0
+    command: ["sleep", "infinity"]
+    networks:
+      - proxy

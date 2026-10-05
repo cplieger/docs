@@ -1,0 +1,27 @@
+# Traefik's own settings. Each app's route lives in the labels of its service in compose.yaml.
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+  websecure:
+    address: ":443"
+    transport:
+      respondingTimeouts:
+        # Traefik stops reading a request after 60 seconds by default, which cuts off
+        # a large upload on a slow link. 0 removes that limit, as Caddy and nginx do.
+        readTimeout: 0
+
+providers:
+  docker:
+    exposedByDefault: false  # only containers with traefik.enable=true get a route
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "you@example.com"  # use your own address, Let's Encrypt refuses example.com
+      storage: /letsencrypt/acme.json
+      tlsChallenge: {}

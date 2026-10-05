@@ -1,0 +1,23 @@
+# Dependency and vulnerability review. Hand-maintained: this repo has no
+# go.mod, jsr.json or Dockerfile, so the sync does not deliver it. Renovate
+# bumps the pin through the `# v2` comment.
+name: Security
+
+on:
+  pull_request:
+    paths:
+      - "**/*.sh"
+      - "**/compose.yaml"
+      - "**/Dockerfile*"
+      - .github/workflows/security.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    permissions:
+      contents: read
+      security-events: write
+    uses: cplieger/ci/.github/workflows/security-scan.yaml@51affb0eab0a80aa0711a6e7c7e0d1339e0c62f2 # v2

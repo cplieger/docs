@@ -1,0 +1,19 @@
+# A test alert. It fires when a container named alert-test logs the words "alert test".
+# docs/monitoring.md shows the command that starts that container.
+groups:
+  - name: alert-test
+    rules:
+      - alert: AlertTest
+        expr: |
+          sum by (container) (count_over_time(
+            {container="alert-test"} |= `alert test` [10m]
+          )) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "Test alert from the alert-test container"
+          description: >
+            Loki found the words "alert test" in the alert-test container's log.
+            If you got this message, logs reach Loki and alerts reach you.
+            It stops firing 10 minutes after the last test line.

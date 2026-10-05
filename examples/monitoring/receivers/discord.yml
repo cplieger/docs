@@ -1,0 +1,13 @@
+# Sends every alert to a Discord channel. Save it as alertmanager/alertmanager.yml.
+# Put the channel's webhook address in alertmanager/discord_webhook_url, on one line.
+route:
+  receiver: discord
+  group_by: [alertname, container]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: discord
+    discord_configs:
+      - webhook_url_file: /etc/alertmanager/discord_webhook_url
