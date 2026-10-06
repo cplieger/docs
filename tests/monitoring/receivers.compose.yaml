@@ -8,7 +8,7 @@ services:
       - "127.0.0.1:9093:9093"
 
   sink:
-    image: python:3.14.6-alpine
+    image: python:3.14.8-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72
     command: ["python3", "/sink.py"]
     volumes:
       - "${DOCS_ROOT}/tests/sink.py:/sink.py:ro"
