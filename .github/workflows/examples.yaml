@@ -12,7 +12,10 @@
 # proxy network. Test-only compose files add services or supply a
 # test certificate and never change a proxy setting the guide shows. Nginx Proxy
 # Manager is set up through its API with the values the guide tells a reader to
-# enter, with a self-signed Custom Certificate in place of Let's Encrypt.
+# enter, with a self-signed Custom Certificate in place of Let's Encrypt. A second step
+# boots the same example with its login from examples/reverse-proxy/login, made the way
+# the guide makes it, and checks that a missing or wrong password gets 401, that the
+# right one passes every protocol check, and that the password never reaches the app.
 #
 # Not a required check: an upstream image change can turn this red on a pull
 # request that did not cause it.
@@ -24,12 +27,14 @@ on:
     paths:
       - "examples/**"
       - "tests/**"
+      - "docs/proxy-login.md"  # tests/reverse-proxy/login.sh runs the image commands this page shows
       - ".github/workflows/examples.yaml"
   push:
     branches: [main]
     paths:
       - "examples/**"
       - "tests/**"
+      - "docs/proxy-login.md"
       - ".github/workflows/examples.yaml"
   workflow_dispatch:
 
@@ -119,6 +124,11 @@ jobs:
         env:
           PROXY: ${{ matrix.proxy }}
         run: bash tests/reverse-proxy/run.sh "$PROXY"
+      - name: Run tests/reverse-proxy/login.sh ${{ matrix.proxy }}
+        if: ${{ !cancelled() }}
+        env:
+          PROXY: ${{ matrix.proxy }}
+        run: bash tests/reverse-proxy/login.sh "$PROXY"
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

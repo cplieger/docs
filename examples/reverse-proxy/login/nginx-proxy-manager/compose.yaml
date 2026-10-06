@@ -1,4 +1,4 @@
-# web-terminal-server behind Nginx Proxy Manager. See docs/reverse-proxy.md for the settings to enter.
+# web-terminal-kiro behind Nginx Proxy Manager, with a login. See docs/proxy-login.md for the settings to enter.
 services:
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:2.16.0
@@ -15,15 +15,18 @@ services:
       proxy:
         ipv4_address: "172.30.0.2"  # a fixed address, so the app can trust it
 
-  web-terminal-server:
-    image: ghcr.io/cplieger/web-terminal-server:latest
-    container_name: web-terminal-server
+  web-terminal-kiro:
+    image: ghcr.io/cplieger/web-terminal-kiro:latest
+    container_name: web-terminal-kiro
     restart: unless-stopped
-    init: true
+    init: true  # required, it cleans up the processes each terminal tab leaves behind
     environment:
-      AUTH_PASSWORD: "${AUTH_PASSWORD:?put AUTH_PASSWORD=<a long password> in .env}"
       ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
       TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
+    volumes:
+      - "./config:/config"  # kiro-cli sign-in, installed tools and settings. The disk must allow running programs.
+      - "./workspace:/workspace"  # your repositories
+      - "./uploads:/uploads"  # images you paste into a tab, kept when the container is recreated
     networks:
       - proxy  # no ports line, so Docker does not publish the app on a host port
 

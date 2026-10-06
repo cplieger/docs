@@ -1,11 +1,12 @@
-# Both passes. A test client on the proxy network with its own fixed address, so the checks
+# Every pass. A test client on the proxy network with its own fixed address, so the checks
 # can require that exact address in X-Forwarded-For and in the app's log.
 services:
   client:
     image: python:3.14.8-alpine@sha256:f6a589d43c42b9e7f7dc67a12d37132491f362859a5d750607710cc56da3bc72
     command: ["sleep", "infinity"]
     environment:
-      AUTH_PASSWORD: "${AUTH_PASSWORD}"
+      AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
+      LOGIN_PASSWORD: "${LOGIN_PASSWORD:-}"
     volumes:
       - "${DOCS_ROOT}/tests/reverse-proxy/check.py:/check.py:ro"
     networks:

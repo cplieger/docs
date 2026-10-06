@@ -1,0 +1,13 @@
+# Serves web-terminal-kiro at https://app.example.com behind a login. Caddy gets the certificate by itself.
+# WebSockets, live updates and the forwarded headers need no extra lines.
+app.example.com {
+	# admin is the user name. Replace <hash> with the hash of your password, which
+	# caddy hash-password prints. docs/proxy-login.md shows how to run it.
+	basic_auth {
+		admin <hash>
+	}
+	reverse_proxy web-terminal-kiro:9848 {
+		# The app has no use for the password, so Caddy removes it from each request.
+		header_up -Authorization
+	}
+}

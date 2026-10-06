@@ -1,0 +1,9 @@
+# Login pass. Swaps web-terminal-kiro's image for the neutral test backend on port 9848.
+# No proxy setting changes.
+services:
+  web-terminal-kiro:
+    image: localhost/docs-test-backend
+    build:
+      context: "${DOCS_ROOT}/tests/reverse-proxy"
+      dockerfile: Dockerfile.backend
+    command: ["python3", "-u", "/backend.py", "9848"]

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Neutral test backend for the reverse-proxy protocol checks. Never shown in a guide.
 
+    backend.py [PORT]   listens on PORT, 7681 by default
+
 GET /headers   the request headers as JSON
 GET /sse       three events 1.5 s apart, with no X-Accel-Buffering header
 POST /upload   the number of body bytes received
@@ -11,6 +13,7 @@ import base64
 import hashlib
 import json
 import struct
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -130,4 +133,4 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    ThreadingHTTPServer(("", 7681), Handler).serve_forever()
+    ThreadingHTTPServer(("", int(sys.argv[1]) if len(sys.argv) > 1 else 7681), Handler).serve_forever()

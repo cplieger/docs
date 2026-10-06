@@ -3,6 +3,9 @@
 
 --mode protocol  against tests/reverse-proxy/backend.py behind the proxy
 --mode app       against the real web-terminal-server behind the proxy
+--mode login     against backend.py behind a proxy that asks for a login: no login and a
+                 wrong one get 401, the right one reaches the backend without its
+                 Authorization header, then every protocol check runs with the right login
 """
 
 import argparse
@@ -17,6 +20,8 @@ import sys
 import time
 
 SPOOFED = "203.0.113.7"
+# The user name every login example and npm-configure.py use.
+USER = "admin"
 # marotte's MaxBytesReader caps a whole upload request at this size.
 LARGEST_BODY = 256 << 20
 failures = 0
@@ -29,6 +34,11 @@ def report(ok: bool, what: str) -> None:
         failures += 1
 
 
+def basic(user: str, password: str) -> dict:
+    token = base64.b64encode(f"{user}:{password}".encode()).decode()
+    return {"Authorization": f"Basic {token}"}
+
+
 class Proxy:
     def __init__(self, args: argparse.Namespace) -> None:
         self.scheme = args.scheme
@@ -37,10 +47,8 @@ class Proxy:
         self.port = args.port or (443 if args.scheme == "https" else 80)
         self.http_port = args.http_port
         self.client_ip = args.client_ip
-        self.auth = {}
-        if args.password_env:
-            token = base64.b64encode(f"admin:{os.environ[args.password_env]}".encode()).decode()
-            self.auth = {"Authorization": f"Basic {token}"}
+        self.password = os.environ[args.password_env] if args.password_env else ""
+        self.auth = basic(USER, self.password) if args.password_env else {}
 
     def tls(self) -> ssl.SSLContext:
         ctx = ssl.create_default_context()
@@ -49,11 +57,15 @@ class Proxy:
         ctx.verify_mode = ssl.CERT_NONE  # test certificates only
         return ctx
 
-    def request(self, method: str, path: str, body: bytes | None = None, headers: dict | None = None):
+    def request(
+        self, method: str, path: str, body: bytes | None = None, headers: dict | None = None, auth: dict | None = None
+    ):
+        """auth replaces the login from --password-env when given, and {} sends none."""
         # A pre-connected socket lets one HTTPConnection carry SNI and Host for app.example.com.
         conn = http.client.HTTPConnection(self.connect, self.port, timeout=30)
         conn.sock = self.socket(30)
-        all_headers = {"Host": self.host, "User-Agent": "docs-check", **self.auth, **(headers or {})}
+        login = self.auth if auth is None else auth
+        all_headers = {"Host": self.host, "User-Agent": "docs-check", **login, **(headers or {})}
         sock = conn.sock
         conn.request(method, path, body=body, headers=all_headers)
         resp = conn.getresponse()
@@ -66,8 +78,9 @@ class Proxy:
             sock = self.tls().wrap_socket(sock, server_hostname=self.host)
         return sock
 
-    def websocket(self, path: str, timeout: float = 30) -> tuple[socket.socket, int]:
+    def websocket(self, path: str, timeout: float = 30, auth: dict | None = None) -> tuple[socket.socket, int]:
         sock = self.socket(timeout)
+        login = self.auth if auth is None else auth
         key = base64.b64encode(os.urandom(16)).decode()
         lines = [
             f"GET {path} HTTP/1.1",
@@ -77,7 +90,7 @@ class Proxy:
             f"Sec-WebSocket-Key: {key}",
             "Sec-WebSocket-Version: 13",
             "User-Agent: docs-check",
-            *(f"{k}: {v}" for k, v in self.auth.items()),
+            *(f"{k}: {v}" for k, v in login.items()),
         ]
         sock.sendall(("\r\n".join(lines) + "\r\n\r\n").encode())
         head = b""
@@ -149,15 +162,20 @@ def redirect(proxy: Proxy) -> None:
     conn.close()
 
 
+def upload_head(proxy: Proxy, total: int) -> str:
+    login = "".join(f"{k}: {v}\r\n" for k, v in proxy.auth.items())
+    return (
+        f"POST /upload HTTP/1.1\r\nHost: {proxy.host}\r\nUser-Agent: docs-check\r\n{login}"
+        f"Content-Type: application/octet-stream\r\nContent-Length: {total}\r\nConnection: close\r\n\r\n"
+    )
+
+
 def large_upload(proxy: Proxy) -> None:
     """The largest body any app accepts, marotte's 256 MiB upload, must reach the backend whole."""
     total = LARGEST_BODY
     chunk = b"x" * (1 << 20)
     sock = proxy.socket(120)
-    head = (
-        f"POST /upload HTTP/1.1\r\nHost: {proxy.host}\r\nUser-Agent: docs-check\r\n"
-        f"Content-Type: application/octet-stream\r\nContent-Length: {total}\r\nConnection: close\r\n\r\n"
-    )
+    head = upload_head(proxy, total)
     try:
         sock.sendall(head.encode())
         for _ in range(total // len(chunk)):
@@ -178,10 +196,7 @@ def slow_upload(proxy: Proxy, seconds: int) -> None:
     chunk = b"x" * 16384
     total = len(chunk) * seconds
     sock = proxy.socket(seconds + 60)
-    head = (
-        f"POST /upload HTTP/1.1\r\nHost: {proxy.host}\r\nUser-Agent: docs-check\r\n"
-        f"Content-Type: application/octet-stream\r\nContent-Length: {total}\r\nConnection: close\r\n\r\n"
-    )
+    head = upload_head(proxy, total)
     print(f"sending a {total} byte upload over {seconds}s", flush=True)
     try:
         sock.sendall(head.encode())
@@ -237,6 +252,38 @@ def protocol(proxy: Proxy, idle: int, slow: int) -> None:
     slow_upload(proxy, slow)
 
 
+def login(proxy: Proxy, idle: int, slow: int) -> None:
+    """The proxy asks for the login before it passes any request on, then lets the right one through
+    with the password removed.
+
+    protocol's redirect check sends no login, so it also proves that plain HTTP goes to HTTPS
+    before the proxy asks for the password.
+    """
+    for what, auth in (("no login", {}), ("a wrong password", basic(USER, proxy.password + "-wrong"))):
+        _, resp = proxy.request("GET", "/headers", auth=auth)
+        challenge = resp.getheader("WWW-Authenticate", "")
+        resp.read()
+        report(resp.status == 401, f"GET /headers with {what} answers {resp.status}")
+        if not auth:
+            report(challenge.startswith("Basic"), f"the 401 asks the browser for a login: {challenge!r}")
+        # Nginx Proxy Manager's Cache Assets serves script and style paths without the login.
+        _, resp = proxy.request("GET", "/app.js", auth=auth)
+        resp.read()
+        report(resp.status == 401, f"GET /app.js with {what} answers {resp.status}")
+        _, resp = proxy.request("GET", "/sse", headers={"Accept": "text/event-stream"}, auth=auth)
+        resp.raw_socket.close()
+        report(resp.status == 401, f"GET /sse with {what} answers {resp.status}")
+        sock, status = proxy.websocket("/ws", auth=auth)
+        sock.close()
+        report(status == 401, f"the WebSocket upgrade with {what} answers {status}")
+
+    _, resp = proxy.request("GET", "/headers")
+    seen = json.loads(resp.read()) if resp.status == 200 else {}
+    report(resp.status == 200, f"GET /headers with the right login answers {resp.status}")
+    report("authorization" not in seen, f"the backend gets no Authorization header: {seen.get('authorization')!r}")
+    protocol(proxy, idle, slow)
+
+
 def app(proxy: Proxy) -> None:
     _, resp = proxy.request("GET", "/healthz")
     report(resp.status == 200, f"GET /healthz through the proxy answers {resp.status}")
@@ -272,7 +319,7 @@ def app(proxy: Proxy) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["protocol", "app"], required=True)
+    parser.add_argument("--mode", choices=["protocol", "app", "login"], required=True)
     parser.add_argument("--scheme", choices=["http", "https"], default="https")
     parser.add_argument("--host", default="app.example.com")
     parser.add_argument("--connect", default="172.30.0.2", help="the proxy's address")
@@ -280,12 +327,16 @@ def main() -> int:
     parser.add_argument("--http-port", type=int, default=80, help="the proxy's plain HTTP port")
     parser.add_argument("--idle", type=int, default=100)
     parser.add_argument("--slow", type=int, default=70, help="seconds a slow upload takes to send")
-    parser.add_argument("--password-env", help="environment variable holding the app password")
+    parser.add_argument("--password-env", help="environment variable holding the password of the login")
     parser.add_argument("--client-ip", default="172.30.0.10", help="this client's own address, as the proxy sees it")
     args = parser.parse_args()
     proxy = Proxy(args)
     if args.mode == "protocol":
         protocol(proxy, args.idle, args.slow)
+    elif args.mode == "login":
+        if not args.password_env:
+            parser.error("--mode login needs --password-env")
+        login(proxy, args.idle, args.slow)
     else:
         app(proxy)
     return 1 if failures else 0
