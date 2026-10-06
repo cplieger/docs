@@ -122,7 +122,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif opcode in (0x1, 0x2):
                     write_frame(sock, opcode, payload)
         except ConnectionError:
-            pass
+            pass  # the client hung up without a close frame; nothing to answer
         self.close_connection = True
 
     def log_message(self, fmt: str, *args) -> None:
