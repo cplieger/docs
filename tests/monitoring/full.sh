@@ -23,6 +23,7 @@ sudo chown 472:0 "$WORK/secrets/grafana_admin_password"
 (
   cd "$WORK"
   bash fetch.sh registry-stats promql
+  bash fetch.sh registry-stats logql
   bash fetch.sh registry-stats dashboard
 )
 
@@ -35,6 +36,13 @@ compose up --detach --quiet-pull
 project monitoring-app up --detach --quiet-pull
 wait_for 120 "Loki is ready" http_ok http://127.0.0.1:3100/ready
 wait_for 60 "Prometheus is ready" http_ok http://127.0.0.1:9090/-/ready
+
+loki_rules() {
+  local rules
+  rules="$(curl -fsS http://127.0.0.1:3100/loki/api/v1/rules)" || return 1
+  grep -q 'name: registry-stats' <<<"$rules"
+}
+wait_for 120 "Loki's ruler loaded the shipped LogQL rules" loki_rules
 
 grafana() {
   curl -fsS --max-time 10 --user "admin:$GRAFANA_PASSWORD" "http://127.0.0.1:3000$1"
