@@ -313,7 +313,7 @@ certificatesResolvers:
 # web-terminal-server behind Traefik. See docs/reverse-proxy.md.
 services:
   traefik:
-    image: traefik:v3.7.13
+    image: traefik:v3.7.14
     container_name: traefik
     restart: unless-stopped
     ports:
