@@ -1,4 +1,4 @@
-# web-terminal-server behind Traefik. See docs/reverse-proxy.md.
+# web-terminal-kiro behind Traefik, with a login. See docs/proxy-login.md.
 services:
   traefik:
     image: traefik:v3.7.13
@@ -11,17 +11,17 @@ services:
       - "./traefik.yaml:/etc/traefik/traefik.yaml:ro"
       - "./letsencrypt:/letsencrypt"  # keeps the certificates
       - "/var/run/docker.sock:/var/run/docker.sock:ro"  # lets Traefik read the labels below
+      - "./htpasswd:/etc/traefik/htpasswd:ro"  # the login, make this file before the first start
     networks:
       proxy:
         ipv4_address: "172.30.0.2"  # a fixed address, so the app can trust it
 
-  web-terminal-server:
-    image: ghcr.io/cplieger/web-terminal-server:latest
-    container_name: web-terminal-server
+  web-terminal-kiro:
+    image: ghcr.io/cplieger/web-terminal-kiro:latest
+    container_name: web-terminal-kiro
     restart: unless-stopped
-    init: true
+    init: true  # required, it cleans up the processes each terminal tab leaves behind
     environment:
-      AUTH_PASSWORD: "${AUTH_PASSWORD:?put AUTH_PASSWORD=<a long password> in .env}"
       ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
       TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
     labels:
@@ -29,7 +29,17 @@ services:
       - "traefik.http.routers.app.rule=Host(`app.example.com`)"
       - "traefik.http.routers.app.entrypoints=websecure"
       - "traefik.http.routers.app.tls.certresolver=letsencrypt"
-      - "traefik.http.services.app.loadbalancer.server.port=7681"
+      - "traefik.http.services.app.loadbalancer.server.port=9848"
+      # The login. A file keeps the password hash out of this file, where every $ in it
+      # would have to be written $$.
+      - "traefik.http.middlewares.login.basicauth.usersfile=/etc/traefik/htpasswd"
+      # The app has no use for the password, so Traefik removes it from each request.
+      - "traefik.http.middlewares.login.basicauth.removeheader=true"
+      - "traefik.http.routers.app.middlewares=login"
+    volumes:
+      - "./config:/config"  # kiro-cli sign-in, installed tools and settings. The disk must allow running programs.
+      - "./workspace:/workspace"  # your repositories
+      - "./uploads:/uploads"  # images you paste into a tab, kept when the container is recreated
     networks:
       - proxy  # no ports line, so Docker does not publish the app on a host port
 

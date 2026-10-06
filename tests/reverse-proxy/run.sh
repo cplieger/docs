@@ -11,13 +11,11 @@
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
+# shellcheck source-path=SCRIPTDIR
+source "$(dirname "$0")/proxy.sh"
 
 proxy="${1:?usage: run.sh caddy|nginx|traefik|npm}"
-case "$proxy" in
-  caddy | nginx | traefik) folder="$proxy" ;;
-  npm) folder=nginx-proxy-manager ;;
-  *) die "unknown proxy $proxy" ;;
-esac
+folder="$(proxy_folder "$proxy")"
 HERE="tests/reverse-proxy"
 CLIENT_IP="172.30.0.10"
 AUTH_PASSWORD="docs-test-$(openssl rand -hex 8)"
@@ -28,28 +26,9 @@ base_files=("${COMPOSE_FILES[@]}" "$DOCS_ROOT/$HERE/client.compose.yaml")
 [ "$proxy" = caddy ] && base_files+=("$DOCS_ROOT/$HERE/caddy.compose.yaml")
 
 if [ "$proxy" = nginx ] || [ "$proxy" = npm ]; then
-  # A self-signed certificate stands in for the one a reader puts in certs/ for nginx,
-  # or adds as a Custom Certificate in Nginx Proxy Manager.
-  mkdir -p "$WORK/certs"
-  openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=app.example.com \
-    -addext subjectAltName=DNS:app.example.com \
-    -keyout "$WORK/certs/privkey.pem" -out "$WORK/certs/fullchain.pem" 2>/dev/null
-  chmod 0644 "$WORK/certs/privkey.pem"
+  make_test_cert "$WORK/certs"
 fi
 
-through_proxy() {
-  curl --silent --insecure --output /dev/null --write-out '%{http_code}' --max-time 5 \
-    --resolve "app.example.com:80:127.0.0.1" --resolve "app.example.com:443:127.0.0.1" \
-    "$@"
-}
-answers() {
-  local want="$1"
-  shift
-  [ "$(through_proxy "$@")" = "$want" ]
-}
-check() {
-  compose exec -T client python3 /check.py --client-ip "$CLIENT_IP" "$@"
-}
 app_ip() {
   docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
     "$(compose ps --quiet web-terminal-server)"

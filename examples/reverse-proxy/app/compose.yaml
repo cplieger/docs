@@ -17,7 +17,7 @@ services:
       - "traefik.http.routers.app.tls.certresolver=letsencrypt"
       - "traefik.http.services.app.loadbalancer.server.port=7681"
     networks:
-      - proxy  # no ports line, so only the proxy can reach the app
+      - proxy  # no ports line, so Docker does not publish the app on a host port
 
 networks:
   proxy:

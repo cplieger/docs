@@ -22,7 +22,7 @@ A reverse proxy receives the visitor's request on ports 80 and 443 and passes it
 
 The apps already ask a proxy not to collect their live updates, with the `X-Accel-Buffering: no` header. They also send a keep-alive message at regular intervals. Both nginx and Nginx Proxy Manager honor that header. The examples still turn off collecting in the proxy, and keep a quiet connection open longer. The metrics apps plex-exporter and registry-stats, and seadex-scout's feed, need no proxy. They serve plain HTTP to a scraper or to Sonarr and Radarr on your network.
 
-marotte and web-terminal-kiro have no login of their own. Anyone who reaches them can use the agent or a root shell on your files. The examples on this page add no login, so use them for these two only after you add a login to the proxy. The security pages of [marotte](https://github.com/cplieger/marotte/blob/main/docs/hardening.md#who-can-reach-it) and [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/main/docs/hardening.md#behind-a-reverse-proxy) explain how.
+marotte and web-terminal-kiro have no login of their own. Anyone who reaches them can use marotte's agent and shell, or web-terminal-kiro's root shell, on your files. The proxy examples below add no login, so use them for these two only with the login from [Adding a login on a reverse proxy](proxy-login.md). For single sign-on instead of a password, see the security pages of [marotte](https://github.com/cplieger/marotte/blob/main/docs/hardening.md#who-can-reach-it) and [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/main/docs/hardening.md#behind-a-reverse-proxy).
 
 All examples on this page put web-terminal-server at `app.example.com`. Change that name to your own in every file, and the app to another one from the table. Each compose file defines a network with a fixed address for the proxy, `172.30.0.2`, which [Telling the app about the proxy](#telling-the-app-about-the-proxy) explains. Put `AUTH_PASSWORD=<a long password>` in an `.env` file next to `compose.yaml`, which is the password web-terminal-server asks for. Then run `docker compose up -d`.
 
@@ -93,7 +93,7 @@ services:
       ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
       TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
     networks:
-      - proxy  # no ports line, so only the proxy can reach the app
+      - proxy  # no ports line, so Docker does not publish the app on a host port
 
 networks:
   proxy:
@@ -216,7 +216,7 @@ services:
       ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
       TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
     networks:
-      - proxy  # no ports line, so only the proxy can reach the app
+      - proxy  # no ports line, so Docker does not publish the app on a host port
 
 networks:
   proxy:
@@ -343,7 +343,7 @@ services:
       - "traefik.http.routers.app.tls.certresolver=letsencrypt"
       - "traefik.http.services.app.loadbalancer.server.port=7681"
     networks:
-      - proxy  # no ports line, so only the proxy can reach the app
+      - proxy  # no ports line, so Docker does not publish the app on a host port
 
 networks:
   proxy:
@@ -392,7 +392,7 @@ services:
       ALLOWED_HOSTS: "app.example.com"  # the name you open it at, any other name is refused
       TRUSTED_PROXIES: "172.30.0.2"  # the proxy, so the app logs the visitor's address
     networks:
-      - proxy  # no ports line, so only the proxy can reach the app
+      - proxy  # no ports line, so Docker does not publish the app on a host port
 
 networks:
   proxy:
@@ -436,7 +436,7 @@ Each example above keeps the app in the proxy's compose file. Most apps run from
 3. In the app's own compose file, add the `networks:` lines from the file below.
 4. Set `ALLOWED_HOSTS` and `TRUSTED_PROXIES` as the file below does, because the app's own file lists other names.
 5. With Traefik, also copy the `labels:` lines, which give Traefik the route.
-6. Remove the app's `ports:` lines, so only the proxy can reach it.
+6. Remove the app's `ports:` lines, so Docker does not publish it on a host port and visitors from your network reach it only through the proxy.
 7. Run `docker compose up -d` in the app's folder.
 
 <!-- include: examples/reverse-proxy/app/compose.yaml -->
@@ -461,7 +461,7 @@ services:
       - "traefik.http.routers.app.tls.certresolver=letsencrypt"
       - "traefik.http.services.app.loadbalancer.server.port=7681"
     networks:
-      - proxy  # no ports line, so only the proxy can reach the app
+      - proxy  # no ports line, so Docker does not publish the app on a host port
 
 networks:
   proxy:
@@ -502,3 +502,5 @@ To check your own setup:
 - Open the app's address. web-terminal-server asks for its login. A `403` page with `host not allowed` means the name is missing from `ALLOWED_HOSTS`, or the proxy does not pass the visitor's `Host`.
 - Leave a terminal open and idle for five minutes. If it disconnects, raise the proxy's read timeout.
 - Run `docker compose logs web-terminal-server` and find a line with `client_ip=`. It should show your device's address, not `172.30.0.2`.
+
+For marotte or web-terminal-kiro, add the login from [Adding a login on a reverse proxy](proxy-login.md) next.
