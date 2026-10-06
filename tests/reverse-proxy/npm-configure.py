@@ -115,7 +115,7 @@ def add_login(token: str, user: str, password: str, forward: str) -> None:
     )
     print(f"ok: created access list {access['id']}")
 
-    hosts = [h for h in call("GET", "/nginx/proxy-hosts", token=token) if "app.example.com" in h["domain_names"]]
+    hosts = [h for h in call("GET", "/nginx/proxy-hosts", token=token) if h["domain_names"] == ["app.example.com"]]
     if len(hosts) != 1:
         sys.exit(f"FAIL: expected one proxy host for app.example.com, found {len(hosts)}")
     # The proxy host's Edit dialog: the new Forward Hostname / IP and Forward Port, then the access list.
