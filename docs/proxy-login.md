@@ -240,7 +240,7 @@ Traefik can also take the hash in a `users` label. The file is simpler, because 
 # web-terminal-kiro behind Traefik, with a login. See docs/proxy-login.md.
 services:
   traefik:
-    image: traefik:v3.7.13
+    image: traefik:v3.7.14
     container_name: traefik
     restart: unless-stopped
     ports:
