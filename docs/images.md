@@ -27,7 +27,7 @@ For an image at version 1 or later, only a new major version needs action on you
 
 Use `vX` for a server you want to keep up to date without surprises. It moves to every new feature and fix within the major version you chose. It never moves to the next major version. For an image at version 0, use `v0.Y` instead. Use `latest` to try an image.
 
-A `vX.Y.Z` tag names one version, but it can still move. After a rebuild, it can point to a newer build made from a later commit of the app, such as a base-image update. A `sha-<commit>` tag stays on one commit of the app's code, so it never gets the app's later fixes. Only a digest names one build that never changes.
+A `vX.Y.Z` tag names one version, but it can still move. After a rebuild, it can point to a newer build made from a later commit of the app, such as a base-image update. The version's release on GitHub, and the git tag it names, never move once published. A `sha-<commit>` tag stays on one commit of the app's code, so it never gets the app's later fixes. Only a digest names one build that never changes.
 
 GitHub's package page also lists tags that start with `sha256-`. They hold signatures and attestations, not images, so do not run them.
 
@@ -126,7 +126,7 @@ cosign verify-attestation --type spdxjson \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
   --certificate-github-workflow-repository "cplieger/${app}" \
-  "$pinned" | jq -r '.payload' | head -n 1 | base64 -d | jq '.predicate.packages | length'
+  "$pinned" | jq -rs '.[0].payload' | base64 -d | jq '.predicate.packages | length'
 ```
 
 <!-- /include -->
@@ -170,7 +170,7 @@ commit="$(gh attestation verify "oci://${pinned}" \
 
 <!-- /include -->
 
-These lines then look for the release made from that commit. If there is one, they download its file and check that its signature was made for that same commit:
+These lines then look for the release made from that commit. If there is one, they download its file and check that its signature was made for that same commit. A file restored to a release after it was published carries the signature of the later run that restored it, so for such a file they check instead that it is exactly the list signed into the image:
 
 <!-- include: examples/images/verify.sh#release-sbom -->
 
@@ -185,19 +185,40 @@ else
   echo "Release built from the same commit: $release"
   dir="$(mktemp -d)"
   gh release download "$release" --repo "cplieger/${app}" --pattern 'sbom.spdx.json*' --dir "$dir"
-  cosign verify-blob \
+  if verified="$(cosign verify-blob \
     --bundle "$dir/sbom.spdx.json.sigstore.json" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
     --certificate-github-workflow-repository "cplieger/${app}" \
     --certificate-github-workflow-sha "$commit" \
-    "$dir/sbom.spdx.json"
+    "$dir/sbom.spdx.json" 2>&1)"; then
+    echo "$verified"
+  else
+    # A file restored to the release later is signed by the run that restored it,
+    # so it must instead be exactly the list signed into the image.
+    cosign verify-blob \
+      --bundle "$dir/sbom.spdx.json.sigstore.json" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+      --certificate-github-workflow-repository "cplieger/${app}" \
+      "$dir/sbom.spdx.json"
+    cosign verify-attestation --type spdxjson \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+      --certificate-github-workflow-repository "cplieger/${app}" \
+      "$pinned" | jq -rs '.[0].payload' | base64 -d | jq -S '.predicate' >"$dir/attested.json"
+    if ! jq -S . "$dir/sbom.spdx.json" | cmp -s - "$dir/attested.json"; then
+      echo "The file of $release is not the list signed into this image." >&2
+      exit 1
+    fi
+    echo "The file of $release was restored later, and it is the list signed into this image."
+  fi
 fi
 ```
 
 <!-- /include -->
 
-cosign prints `Verified OK` when the file matches its signature. If no release was built from your image's commit, rely on the signed list in the image, from [Reading the software bill of materials](#reading-the-software-bill-of-materials). To check the image a release published, run the lines with the tag `sha-<commit>`, using the commit the release was made from.
+cosign prints `Verified OK` when the file matches its signature. For a restored file, the lines then print that it is the list signed into the image. If no release was built from your image's commit, rely on the signed list in the image, from [Reading the software bill of materials](#reading-the-software-bill-of-materials). To check the image a release published, run the lines with the tag `sha-<commit>`, using the commit the release was made from.
 
 ## Checking all of it at once
 
@@ -240,7 +261,7 @@ cosign verify-attestation --type spdxjson \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
   --certificate-github-workflow-repository "cplieger/${app}" \
-  "$pinned" | jq -r '.payload' | head -n 1 | base64 -d | jq '.predicate.packages | length'
+  "$pinned" | jq -rs '.[0].payload' | base64 -d | jq '.predicate.packages | length'
 # endregion: cosign-attestation
 
 # region: gh-attestation
@@ -280,13 +301,34 @@ else
   echo "Release built from the same commit: $release"
   dir="$(mktemp -d)"
   gh release download "$release" --repo "cplieger/${app}" --pattern 'sbom.spdx.json*' --dir "$dir"
-  cosign verify-blob \
+  if verified="$(cosign verify-blob \
     --bundle "$dir/sbom.spdx.json.sigstore.json" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
     --certificate-github-workflow-repository "cplieger/${app}" \
     --certificate-github-workflow-sha "$commit" \
-    "$dir/sbom.spdx.json"
+    "$dir/sbom.spdx.json" 2>&1)"; then
+    echo "$verified"
+  else
+    # A file restored to the release later is signed by the run that restored it,
+    # so it must instead be exactly the list signed into the image.
+    cosign verify-blob \
+      --bundle "$dir/sbom.spdx.json.sigstore.json" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+      --certificate-github-workflow-repository "cplieger/${app}" \
+      "$dir/sbom.spdx.json"
+    cosign verify-attestation --type spdxjson \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+      --certificate-github-workflow-repository "cplieger/${app}" \
+      "$pinned" | jq -rs '.[0].payload' | base64 -d | jq -S '.predicate' >"$dir/attested.json"
+    if ! jq -S . "$dir/sbom.spdx.json" | cmp -s - "$dir/attested.json"; then
+      echo "The file of $release is not the list signed into this image." >&2
+      exit 1
+    fi
+    echo "The file of $release was restored later, and it is the list signed into this image."
+  fi
 fi
 # endregion: release-sbom
 ```
