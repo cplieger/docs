@@ -3,7 +3,7 @@
 # required `ci / validate` check. No paths filter, so the required check
 # always reports. Hand-maintained: this repo has no go.mod, jsr.json or
 # Dockerfile, so the sync does not deliver it. Renovate bumps the pin through
-# the `# v2` comment.
+# the `# v3` comment.
 name: CI
 
 on:
@@ -22,4 +22,4 @@ concurrency:
 
 jobs:
   ci:
-    uses: cplieger/ci/.github/workflows/ci.yaml@51affb0eab0a80aa0711a6e7c7e0d1339e0c62f2 # v2
+    uses: cplieger/ci/.github/workflows/ci.yaml@b5c28aa5341aa41fa0795f698bd44d0e26ff299a # v3
