@@ -32,7 +32,7 @@ cosign verify-attestation --type spdxjson \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
   --certificate-github-workflow-repository "cplieger/${app}" \
-  "$pinned" | jq -r '.payload' | head -n 1 | base64 -d | jq '.predicate.packages | length'
+  "$pinned" | jq -rs '.[0].payload' | base64 -d | jq '.predicate.packages | length'
 # endregion: cosign-attestation
 
 # region: gh-attestation
@@ -72,12 +72,33 @@ else
   echo "Release built from the same commit: $release"
   dir="$(mktemp -d)"
   gh release download "$release" --repo "cplieger/${app}" --pattern 'sbom.spdx.json*' --dir "$dir"
-  cosign verify-blob \
+  if verified="$(cosign verify-blob \
     --bundle "$dir/sbom.spdx.json.sigstore.json" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
     --certificate-github-workflow-repository "cplieger/${app}" \
     --certificate-github-workflow-sha "$commit" \
-    "$dir/sbom.spdx.json"
+    "$dir/sbom.spdx.json" 2>&1)"; then
+    echo "$verified"
+  else
+    # A file restored to the release later is signed by the run that restored it,
+    # so it must instead be exactly the list signed into the image.
+    cosign verify-blob \
+      --bundle "$dir/sbom.spdx.json.sigstore.json" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+      --certificate-github-workflow-repository "cplieger/${app}" \
+      "$dir/sbom.spdx.json"
+    cosign verify-attestation --type spdxjson \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+      --certificate-github-workflow-repository "cplieger/${app}" \
+      "$pinned" | jq -rs '.[0].payload' | base64 -d | jq -S '.predicate' >"$dir/attested.json"
+    if ! jq -S . "$dir/sbom.spdx.json" | cmp -s - "$dir/attested.json"; then
+      echo "The file of $release is not the list signed into this image." >&2
+      exit 1
+    fi
+    echo "The file of $release was restored later, and it is the list signed into this image."
+  fi
 fi
 # endregion: release-sbom
