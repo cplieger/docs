@@ -1,4 +1,4 @@
-FROM python:3.14.8-alpine
+FROM python:3.15.0-alpine
 COPY backend.py /backend.py
 EXPOSE 7681
 CMD ["python3", "-u", "/backend.py"]
