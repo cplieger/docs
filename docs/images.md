@@ -170,55 +170,71 @@ commit="$(gh attestation verify "oci://${pinned}" \
 
 <!-- /include -->
 
-These lines then look for the release made from that commit. If there is one, they download its file and check that its signature was made for that same commit. A file restored to a release after it was published carries the signature of the later run that restored it, so for such a file they check instead that it is exactly the list signed into the image:
+A release publishes a build of its own commit, or an unchanged build of an earlier commit, such as one it promotes from the app's `dev` branch. So these lines read the app's releases tagged `vX.Y.Z` and made from a commit dated no earlier than that one, oldest first. They pick the first release whose version tag names your build's digest. When several releases published the same build, that is the first of them.
+
+A release whose image cannot be read is skipped, and if no other release matches, the lines stop with an error rather than report that no release published your build.
+
+The lines then download that release's file and check that the cplieger release workflow signed it for this app. Then they check that the file lists the same packages, at the same versions, as the list signed into the image:
 
 <!-- include: examples/images/verify.sh#release-sbom -->
 
 ```sh
-tags="$(gh api --paginate "repos/cplieger/${app}/tags?per_page=100" \
-  --jq ".[] | select(.commit.sha == \"${commit}\") | .name")"
-# grep exits 1 when no tag matches, which means no release. Any other failure stops the script.
-release="$(grep -m 1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$tags" || [ "$?" -eq 1 ])"
-if [ -z "$release" ]; then
-  echo "No release was built from commit $commit, so no release file describes this image."
+# A release's created_at is the date of its commit, not of its publication:
+# https://docs.github.com/en/rest/releases/releases#get-the-latest-release
+since="$(gh api "repos/cplieger/${app}/commits/${commit}" --jq '.commit.committer.date')"
+candidates="$(gh api --paginate "repos/cplieger/${app}/releases?per_page=100" \
+  --jq ".[] | select((.draft or .prerelease) | not) | select(.tag_name | test(\"^v[0-9]+[.][0-9]+[.][0-9]+$\")) | select(.created_at >= \"${since}\") | \"\(.created_at) \(.tag_name)\"" \
+  | sort | cut -d ' ' -f 2)"
+release=""
+unread=""
+for candidate in $candidates; do
+  if ! published="$(docker buildx imagetools inspect "ghcr.io/cplieger/${app}:${candidate}" --format '{{.Manifest.Digest}}')"; then
+    unread="$unread $candidate"
+    continue
+  fi
+  if [ "$published" = "$digest" ]; then
+    release="$candidate"
+    break
+  fi
+done
+if [ -z "$release" ] && [ -n "$unread" ]; then
+  echo "Could not read the image of$unread, so it is unknown which release published this build." >&2
+  exit 1
+elif [ -z "$release" ]; then
+  echo "No release published this build, so no release file describes it."
 else
-  echo "Release built from the same commit: $release"
+  echo "Release that published this build: $release"
   dir="$(mktemp -d)"
   gh release download "$release" --repo "cplieger/${app}" --pattern 'sbom.spdx.json*' --dir "$dir"
-  if verified="$(cosign verify-blob \
+  cosign verify-blob \
     --bundle "$dir/sbom.spdx.json.sigstore.json" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
     --certificate-github-workflow-repository "cplieger/${app}" \
-    --certificate-github-workflow-sha "$commit" \
-    "$dir/sbom.spdx.json" 2>&1)"; then
-    echo "$verified"
-  else
-    # A file restored to the release later is signed by the run that restored it,
-    # so it must instead be exactly the list signed into the image.
-    cosign verify-blob \
-      --bundle "$dir/sbom.spdx.json.sigstore.json" \
-      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
-      --certificate-github-workflow-repository "cplieger/${app}" \
-      "$dir/sbom.spdx.json"
-    cosign verify-attestation --type spdxjson \
-      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
-      --certificate-github-workflow-repository "cplieger/${app}" \
-      "$pinned" | jq -rs '.[0].payload' | base64 -d | jq -S '.predicate' >"$dir/attested.json"
-    if ! jq -S . "$dir/sbom.spdx.json" | cmp -s - "$dir/attested.json"; then
-      echo "The file of $release is not the list signed into this image." >&2
-      exit 1
-    fi
-    echo "The file of $release was restored later, and it is the list signed into this image."
+    "$dir/sbom.spdx.json"
+  cosign verify-attestation --type spdxjson \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+    --certificate-github-workflow-repository "cplieger/${app}" \
+    "$pinned" | jq -rs '.[0].payload' | base64 -d | jq '.predicate' >"$dir/attested.json"
+  packages='[.packages[] | {name, versionInfo}] | sort'
+  jq -S "$packages" "$dir/sbom.spdx.json" >"$dir/release-packages.json"
+  jq -S "$packages" "$dir/attested.json" >"$dir/image-packages.json"
+  if ! cmp -s "$dir/release-packages.json" "$dir/image-packages.json"; then
+    echo "The file of $release does not list the packages signed into this image." >&2
+    exit 1
   fi
+  echo "The file of $release lists the same packages as the list signed into this image."
 fi
 ```
 
 <!-- /include -->
 
-cosign prints `Verified OK` when the file matches its signature. For a restored file, the lines then print that it is the list signed into the image. If no release was built from your image's commit, rely on the signed list in the image, from [Reading the software bill of materials](#reading-the-software-bill-of-materials). To check the image a release published, run the lines with the tag `sha-<commit>`, using the commit the release was made from.
+cosign prints `Verified OK` when the file matches its signature, and the lines then print that it lists the same packages as the image. The version tag only finds the release, and a tag can move. The comparison with the signed list is what ties the file to your build, so a file that lists other packages is refused. The comparison reads only each package's name and version.
+
+A release that promotes a build attaches the list already signed into the image. A release made by an older workflow scanned the same image again instead and signed that new file. The date, document name, scanner version and extra references of such a file can differ from the signed list, and the comparison does not read them. A newer scanner can also find a package the earlier scan missed. The lines then refuse the file, and the signed list in the image is the one that describes your build.
+
+If no release published your build, rely on the signed list in the image, from [Reading the software bill of materials](#reading-the-software-bill-of-materials). To check the image a release published, run the lines with that release's version tag, such as `v2.4.0`. If that tag has since moved to a rebuild, the lines report the release that published the rebuild, or none.
 
 ## Checking all of it at once
 
@@ -291,44 +307,52 @@ esac
 echo "Built from commit $commit of cplieger/${app}"
 
 # region: release-sbom
-tags="$(gh api --paginate "repos/cplieger/${app}/tags?per_page=100" \
-  --jq ".[] | select(.commit.sha == \"${commit}\") | .name")"
-# grep exits 1 when no tag matches, which means no release. Any other failure stops the script.
-release="$(grep -m 1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$tags" || [ "$?" -eq 1 ])"
-if [ -z "$release" ]; then
-  echo "No release was built from commit $commit, so no release file describes this image."
+# A release's created_at is the date of its commit, not of its publication:
+# https://docs.github.com/en/rest/releases/releases#get-the-latest-release
+since="$(gh api "repos/cplieger/${app}/commits/${commit}" --jq '.commit.committer.date')"
+candidates="$(gh api --paginate "repos/cplieger/${app}/releases?per_page=100" \
+  --jq ".[] | select((.draft or .prerelease) | not) | select(.tag_name | test(\"^v[0-9]+[.][0-9]+[.][0-9]+$\")) | select(.created_at >= \"${since}\") | \"\(.created_at) \(.tag_name)\"" \
+  | sort | cut -d ' ' -f 2)"
+release=""
+unread=""
+for candidate in $candidates; do
+  if ! published="$(docker buildx imagetools inspect "ghcr.io/cplieger/${app}:${candidate}" --format '{{.Manifest.Digest}}')"; then
+    unread="$unread $candidate"
+    continue
+  fi
+  if [ "$published" = "$digest" ]; then
+    release="$candidate"
+    break
+  fi
+done
+if [ -z "$release" ] && [ -n "$unread" ]; then
+  echo "Could not read the image of$unread, so it is unknown which release published this build." >&2
+  exit 1
+elif [ -z "$release" ]; then
+  echo "No release published this build, so no release file describes it."
 else
-  echo "Release built from the same commit: $release"
+  echo "Release that published this build: $release"
   dir="$(mktemp -d)"
   gh release download "$release" --repo "cplieger/${app}" --pattern 'sbom.spdx.json*' --dir "$dir"
-  if verified="$(cosign verify-blob \
+  cosign verify-blob \
     --bundle "$dir/sbom.spdx.json.sigstore.json" \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
     --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
     --certificate-github-workflow-repository "cplieger/${app}" \
-    --certificate-github-workflow-sha "$commit" \
-    "$dir/sbom.spdx.json" 2>&1)"; then
-    echo "$verified"
-  else
-    # A file restored to the release later is signed by the run that restored it,
-    # so it must instead be exactly the list signed into the image.
-    cosign verify-blob \
-      --bundle "$dir/sbom.spdx.json.sigstore.json" \
-      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
-      --certificate-github-workflow-repository "cplieger/${app}" \
-      "$dir/sbom.spdx.json"
-    cosign verify-attestation --type spdxjson \
-      --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-      --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
-      --certificate-github-workflow-repository "cplieger/${app}" \
-      "$pinned" | jq -rs '.[0].payload' | base64 -d | jq -S '.predicate' >"$dir/attested.json"
-    if ! jq -S . "$dir/sbom.spdx.json" | cmp -s - "$dir/attested.json"; then
-      echo "The file of $release is not the list signed into this image." >&2
-      exit 1
-    fi
-    echo "The file of $release was restored later, and it is the list signed into this image."
+    "$dir/sbom.spdx.json"
+  cosign verify-attestation --type spdxjson \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity-regexp '^https://github\.com/cplieger/ci/\.github/workflows/docker-release\.yaml@' \
+    --certificate-github-workflow-repository "cplieger/${app}" \
+    "$pinned" | jq -rs '.[0].payload' | base64 -d | jq '.predicate' >"$dir/attested.json"
+  packages='[.packages[] | {name, versionInfo}] | sort'
+  jq -S "$packages" "$dir/sbom.spdx.json" >"$dir/release-packages.json"
+  jq -S "$packages" "$dir/attested.json" >"$dir/image-packages.json"
+  if ! cmp -s "$dir/release-packages.json" "$dir/image-packages.json"; then
+    echo "The file of $release does not list the packages signed into this image." >&2
+    exit 1
   fi
+  echo "The file of $release lists the same packages as the list signed into this image."
 fi
 # endregion: release-sbom
 ```
