@@ -54,7 +54,7 @@ services:
       - "127.0.0.1:9093:9093"  # the Alertmanager page, from this host only
 
   alloy:
-    image: grafana/alloy:v1.20.1
+    image: grafana/alloy:v1.21.0
     container_name: alloy
     restart: unless-stopped
     volumes:
@@ -412,7 +412,7 @@ services:
       - "127.0.0.1:9093:9093"  # the Alertmanager page, from this host only
 
   alloy:
-    image: grafana/alloy:v1.20.1
+    image: grafana/alloy:v1.21.0
     container_name: alloy
     restart: unless-stopped
     volumes:
