@@ -20,7 +20,7 @@ A reverse proxy receives the visitor's request on ports 80 and 443 and passes it
 | subflux | 8374 | its own login page | none | `/api/events` | 1 MiB |
 | knell | 9190 | `BEAT_TOKEN` for beats | none | none | none, a beat's body is ignored |
 
-The apps already ask a proxy not to collect their live updates, with the `X-Accel-Buffering: no` header. They also send a keep-alive message at regular intervals. Both nginx and Nginx Proxy Manager honor that header. The examples still turn off collecting in the proxy, and keep a quiet connection open longer. The metrics apps plex-exporter and registry-stats, and seadex-scout's feed, need no proxy. They serve plain HTTP to a scraper or to Sonarr and Radarr on your network.
+The apps already ask a proxy not to collect their live updates, with the `X-Accel-Buffering: no` header. They also send a keep-alive message at regular intervals. Both nginx and Nginx Proxy Manager honor that header. The examples still turn off collecting in the proxy, and keep a quiet connection open longer. The metrics app plex-exporter and seadex-scout's feed need no proxy. They serve plain HTTP to a scraper or to Sonarr and Radarr on your network.
 
 marotte and web-terminal-kiro have no login of their own. Anyone who reaches them can use marotte's agent and shell, or web-terminal-kiro's root shell, on your files. The proxy examples below add no login, so use them for these two only with the login from [Adding a login on a reverse proxy](proxy-login.md). For single sign-on instead of a password, see the security pages of [marotte](https://github.com/cplieger/marotte/blob/main/docs/hardening.md#who-can-reach-it) and [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/main/docs/hardening.md#behind-a-reverse-proxy).
 

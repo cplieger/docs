@@ -1,0 +1,19 @@
+# plex-exporter in its own folder, an app with metrics and a dashboard to try the full stack with.
+# It joins the monitoring network that the full stack creates, so Alloy can read its metrics.
+# Start the full stack first. See docs/monitoring.md.
+services:
+  plex-exporter:
+    image: ghcr.io/cplieger/plex-exporter:latest
+    container_name: plex-exporter
+    restart: unless-stopped
+    # No Plex server answers at this address, so plex-exporter reports Plex as unreachable.
+    # It still serves its metrics page and writes logs, which is enough to try the stack.
+    environment:
+      PLEX_URL: "http://plex.invalid:32400"  # a name ending in .invalid never resolves
+      PLEX_TOKEN: "placeholder"  # not a real token, so this file holds no secret
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    external: true  # created by the full stack's compose.yaml

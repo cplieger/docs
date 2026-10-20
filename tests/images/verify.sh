@@ -75,9 +75,9 @@ newest="$(head -n 1 <<<"$releases")"
 # work before a match they already found.
 oldest_first="$(tac <<<"$releases")"
 
-registry_major="$(stable_releases registry-stats | head -n 1 | cut -d ' ' -f 2 | cut -d . -f 1)"
-[ -n "$registry_major" ] || die "registry-stats has no release"
-for target in "web-terminal-server latest" "registry-stats $registry_major"; do
+exporter_major="$(stable_releases plex-exporter | head -n 1 | cut -d ' ' -f 2 | cut -d . -f 1)"
+[ -n "$exporter_major" ] || die "plex-exporter has no release"
+for target in "web-terminal-server latest" "plex-exporter $exporter_major"; do
   read -r app tag <<<"$target"
   run_verify "$app" "$tag"
   [ -n "$(picked)" ] || die "no release was matched with $app:$tag, which only a release moves"
