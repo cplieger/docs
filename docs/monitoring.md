@@ -30,7 +30,7 @@ This stack runs Alloy, Loki and Alertmanager. It reads the logs of every contain
 # See docs/monitoring.md for every step.
 services:
   loki:
-    image: grafana/loki:3.7.8
+    image: grafana/loki:3.7.9
     container_name: loki
     restart: unless-stopped
     command: "-config.file=/etc/loki/config.yaml"
@@ -388,7 +388,7 @@ The full stack adds Prometheus and Grafana to the smallest stack. Run it in the 
 # See docs/monitoring.md for every step.
 services:
   loki:
-    image: grafana/loki:3.7.8
+    image: grafana/loki:3.7.9
     container_name: loki
     restart: unless-stopped
     command: "-config.file=/etc/loki/config.yaml"
