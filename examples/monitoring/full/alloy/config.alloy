@@ -31,9 +31,9 @@ loki.write "local" {
 // Read the metrics of each app that has a metrics port. Add one block per app.
 // The job name is the one its shipped alert rules expect.
 // Alloy finds the app by its container name on the monitoring network, so the app must join that network.
-prometheus.scrape "registry_stats" {
-	job_name   = "registry-stats"
-	targets    = [{"__address__" = "registry-stats:9100"}]
+prometheus.scrape "plex_exporter" {
+	job_name   = "plex-exporter"
+	targets    = [{"__address__" = "plex-exporter:9594"}]
 	forward_to = [prometheus.remote_write.local.receiver]
 }
 

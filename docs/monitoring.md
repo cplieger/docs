@@ -507,9 +507,9 @@ loki.write "local" {
 // Read the metrics of each app that has a metrics port. Add one block per app.
 // The job name is the one its shipped alert rules expect.
 // Alloy finds the app by its container name on the monitoring network, so the app must join that network.
-prometheus.scrape "registry_stats" {
-	job_name   = "registry-stats"
-	targets    = [{"__address__" = "registry-stats:9100"}]
+prometheus.scrape "plex_exporter" {
+	job_name   = "plex-exporter"
+	targets    = [{"__address__" = "plex-exporter:9594"}]
 	forward_to = [prometheus.remote_write.local.receiver]
 }
 
@@ -610,21 +610,24 @@ Prometheus keeps metrics for 15 days, set by `--storage.tsdb.retention.time` in 
 
 Alloy reads an app's metrics page by the app's container name. Compose gives each compose file its own network, so Alloy cannot reach an app in another folder until the app joins the stack's network. The full stack names its network `monitoring` for that. Logs need no network, because Alloy reads them through the Docker socket.
 
-To try it, run registry-stats from its own folder with this file:
+To try it, run plex-exporter from its own folder with this file. You need no Plex Media Server or token for this. The file points plex-exporter at an address where no Plex server answers, so it reports Plex as unreachable, but it still serves its metrics page and writes logs. For real Plex statistics, set your server's address and token as [plex-exporter's quick start](https://github.com/cplieger/plex-exporter#quick-start) explains.
 
-<!-- include: examples/monitoring/registry-stats/compose.yaml -->
+<!-- include: examples/monitoring/plex-exporter/compose.yaml -->
 
 ```yaml
-# registry-stats in its own folder, an app with metrics and a dashboard to try the full stack with.
+# plex-exporter in its own folder, an app with metrics and a dashboard to try the full stack with.
 # It joins the monitoring network that the full stack creates, so Alloy can read its metrics.
 # Start the full stack first. See docs/monitoring.md.
 services:
-  registry-stats:
-    image: ghcr.io/cplieger/registry-stats:latest
-    container_name: registry-stats
+  plex-exporter:
+    image: ghcr.io/cplieger/plex-exporter:latest
+    container_name: plex-exporter
     restart: unless-stopped
+    # No Plex server answers at this address, so plex-exporter reports Plex as unreachable.
+    # It still serves its metrics page and writes logs, which is enough to try the stack.
     environment:
-      GHCR_REPOS: "cplieger/registry-stats"  # counts the downloads of one public image
+      PLEX_URL: "http://plex.invalid:32400"  # a name ending in .invalid never resolves
+      PLEX_TOKEN: "placeholder"  # not a real token, so this file holds no secret
     networks:
       - monitoring
 
@@ -635,9 +638,11 @@ networks:
 
 <!-- /include -->
 
-1. Run `cp -r docs/examples/monitoring/registry-stats registry-stats` from the folder you cloned this repository into.
-2. Run `docker compose up -d` in the `registry-stats` folder, after the full stack is up.
-3. Run `curl -s 'http://localhost:9090/api/v1/query?query=up'` on the host. Within two minutes, the answer includes `"job":"registry-stats"` with the value `"1"`, which means Alloy reaches its metrics page.
+1. Run `cp -r docs/examples/monitoring/plex-exporter plex-exporter` from the folder you cloned this repository into.
+2. Run `docker compose up -d` in the `plex-exporter` folder, after the full stack is up.
+3. Run `curl -s 'http://localhost:9090/api/v1/query?query=up'` on the host. Within two minutes, the answer includes `"job":"plex-exporter"` with the value `"1"`, which means Alloy reaches its metrics page.
+
+If you load plex-exporter's alert rules, as [Loading metric alert rules](#loading-metric-alert-rules) explains, two of them fire because no Plex server answers. `PlexExporterAPIUnreachable` fires after ten minutes, and `PlexExporterCollectionErrors` after thirty.
 
 For your own apps, add the same `networks:` lines to each app's compose file, and a `prometheus.scrape` block to `alloy/config.alloy`.
 
