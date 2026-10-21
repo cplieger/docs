@@ -193,7 +193,7 @@ nginx normally looks up the app's address once, when it starts. An update recrea
 # web-terminal-server behind nginx. See docs/reverse-proxy.md.
 services:
   nginx:
-    image: nginx:1.31.7
+    image: nginx:1.31.8
     container_name: nginx
     restart: unless-stopped
     ports:
