@@ -1,7 +1,7 @@
 # Test-only services added to examples/monitoring/minimal. None of the example's services change.
 services:
   sink:
-    image: python:3.15.0-alpine
+    image: python:3.15.1-alpine
     command: ["python3", "/sink.py"]
     volumes:
       - "${DOCS_ROOT}/tests/sink.py:/sink.py:ro"
