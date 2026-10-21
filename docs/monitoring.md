@@ -421,7 +421,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"  # lets Alloy find containers and read their logs
 
   prometheus:
-    image: prom/prometheus:v3.15.0
+    image: prom/prometheus:v3.15.1
     container_name: prometheus
     restart: unless-stopped
     command:
