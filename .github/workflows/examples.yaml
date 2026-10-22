@@ -88,7 +88,7 @@ jobs:
       - name: Validate the example Renovate config
         run: |
           # renovate: datasource=npm depName=renovate
-          VERSION=44.168.3
+          VERSION=44.168.4
           npx --yes --package "renovate@${VERSION}" -- renovate-config-validator --strict examples/images/renovate.json
 
   hardening:
