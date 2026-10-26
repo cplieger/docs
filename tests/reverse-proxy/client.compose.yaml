@@ -2,7 +2,7 @@
 # can require that exact address in X-Forwarded-For and in the app's log.
 services:
   client:
-    image: python:3.15.1-alpine
+    image: python:3.15.2-alpine
     command: ["sleep", "infinity"]
     environment:
       AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
