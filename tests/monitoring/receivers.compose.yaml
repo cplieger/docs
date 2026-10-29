@@ -1,7 +1,7 @@
 # Test-only stack. Alertmanager loads the guide's Discord config unchanged and posts to a local test webhook.
 services:
   alertmanager:
-    image: prom/alertmanager:v0.34.1
+    image: prom/alertmanager:v0.34.2
     volumes:
       - "${RECEIVERS_DIR}:/etc/alertmanager:ro"
     ports:
