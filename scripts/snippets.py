@@ -102,7 +102,7 @@ def source(path: str, region: str | None) -> tuple[str | None, str]:
     file = ROOT / path
     if not file.is_file():
         return None, f"file not found: {path}"
-    text = file.read_text(encoding="utf-8")
+    text = file.read_text()
     if region is None:
         return text, ""
     body = region_text(text, region)
@@ -123,7 +123,7 @@ def fence_end(lines: list[str], start: int, fence: str) -> int:
 def process(page: Path, write: bool, shown: set[str]) -> list[str]:
     """Check or rewrite one page. Return its problems."""
     rel = page.relative_to(ROOT).as_posix()
-    lines = page.read_text(encoding="utf-8").splitlines()
+    lines = page.read_text().splitlines()
     out: list[str] = []
     problems: list[str] = []
     i = 0
@@ -174,7 +174,7 @@ def process(page: Path, write: bool, shown: set[str]) -> list[str]:
         out.append(CLOSE)
         i = close + 1
     if write:
-        page.write_text("\n".join(out) + "\n", encoding="utf-8")
+        page.write_text("\n".join(out) + "\n")
     return problems
 
 
