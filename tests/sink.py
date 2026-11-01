@@ -16,7 +16,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             item = json.loads(body)
         except ValueError:
-            item = body.decode("utf-8", "replace")
+            item = body.decode(errors="replace")
         with lock:
             received.append(item)
         self.send_response(204)
