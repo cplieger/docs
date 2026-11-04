@@ -58,7 +58,7 @@ app.example.com {
 # web-terminal-kiro behind Caddy, with a login. See docs/proxy-login.md.
 services:
   caddy:
-    image: caddy:2.11.7
+    image: caddy:2.11.8
     container_name: caddy
     restart: unless-stopped
     ports:
