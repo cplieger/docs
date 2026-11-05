@@ -68,7 +68,7 @@ app.example.com {
 # web-terminal-server behind Caddy. See docs/reverse-proxy.md.
 services:
   caddy:
-    image: caddy:2.11.8
+    image: caddy:2.11.9
     container_name: caddy
     restart: unless-stopped
     ports:
