@@ -3,8 +3,8 @@
 prometheus.exporter.cadvisor "containers" {
 	docker_only = true
 
-	// Left on, cAdvisor turns each container's environment variables into labels,
-	// and an app's token or password would end up in Prometheus.
+	// Left on, cAdvisor copies every container's Docker labels onto its series,
+	// and a label can hold a setting such as a proxy's login hash.
 	store_container_labels = false
 }
 

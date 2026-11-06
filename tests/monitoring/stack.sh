@@ -59,12 +59,8 @@ if docker container inspect alert-test >/dev/null 2>&1; then
   die "a container named alert-test already exists. This test leaves it alone, so remove it yourself first"
 fi
 (cd "$WORK" && bash test-alert.sh)
-# Only a successful `docker run --name` gets here, so this ID is the container the test started.
-ALERT_TEST_ID="$(docker container inspect --format '{{.Id}}' alert-test)"
-remove_alert_test() {
-  docker rm --force "$ALERT_TEST_ID" >/dev/null 2>&1
-}
-CLEANUP_FUNCS+=(remove_alert_test)
+! docker container inspect alert-test >/dev/null 2>&1 || die "test-alert.sh left its alert-test container running"
+pass "test-alert.sh's alert-test container is gone"
 
 # sink_has ALERTNAME CONTAINER: the webhook received that alert, firing, with that container label.
 sink_has() {

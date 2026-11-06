@@ -565,7 +565,7 @@ receivers:
 - `repeat_interval: 168h` reminds you once a week while an item's alert fires. Alertmanager remembers what it sent only for as long as `--data.retention` says, 120 hours unless you set it, and sends a notification again once it forgets, even before `repeat_interval` has passed ([configuration reference](https://prometheus.io/docs/alerting/latest/configuration/#route)). The starting stack's `compose.yaml` sets it to 720 hours and keeps that memory on the `alertmanager-data` volume across restarts. A `command:` in Compose replaces the image's own arguments, which is why that list repeats `--config.file` and `--storage.path`.
 - `send_resolved: false` sends no second message when an item's alert stops firing.
 
-Many new items at once send one message each. Discord limits how fast a webhook can post, and every Alertmanager release up to v0.34.2 drops a message that Discord refuses with status `429` instead of sending it again. The fix, [prometheus/alertmanager#5496](https://github.com/prometheus/alertmanager/pull/5496), is merged but was in no release in November 2026.
+Many new items at once send one message each. Discord limits how fast a webhook can post. Up to v0.34.2, Alertmanager does not retry at once a message that Discord refuses with status `429`. It sends it again only at the next `group_interval`, five minutes later, and never if the alert stops firing first. The fix, [prometheus/alertmanager#5496](https://github.com/prometheus/alertmanager/pull/5496), is merged but was in no release in November 2026.
 
 To check where an alert would go, run `docker compose exec alertmanager amtool config routes test --config.file=/etc/alertmanager/alertmanager.yml alertname=ExampleAppItemFound`, which prints the receiver's name. To send a test alert through the route, run `docker compose exec alertmanager amtool alert add alertname=ExampleAppItemFound item=test --alertmanager.url=http://localhost:9093`.
 
@@ -624,7 +624,7 @@ The starting stack probes health pages with Alloy's [`prometheus.exporter.blackb
 ```yaml
 # Alerts when an app's health page stops answering 200, from Alloy's blackbox probe.
 # alloy/config.alloy probes each app once a minute, so this fires on the third failed probe.
-# docs/monitoring.md explains what each app's health page checks.
+# Each app's monitoring page says what its health page checks.
 groups:
   - name: app-alive
     rules:
@@ -705,8 +705,8 @@ services:
 prometheus.exporter.cadvisor "containers" {
 	docker_only = true
 
-	// Left on, cAdvisor turns each container's environment variables into labels,
-	// and an app's token or password would end up in Prometheus.
+	// Left on, cAdvisor copies every container's Docker labels onto its series,
+	// and a label can hold a setting such as a proxy's login hash.
 	store_container_labels = false
 }
 
