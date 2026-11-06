@@ -303,7 +303,7 @@ Then start it:
 
 Alertmanager must also be able to read `alertmanager/alertmanager.yml`. A file you create with a text editor usually is readable by everyone. If Alertmanager logs `permission denied`, run `chmod 644 alertmanager/alertmanager.yml`.
 
-Prometheus keeps metrics for 15 days, set by `--storage.tsdb.retention.time` in `compose.yaml`. For a longer history, raise it, for example to `90d`, then run `docker compose up -d`. To keep logs longer, raise `retention_period` in `loki/config.yaml` the same way, then run `docker compose restart loki`. Consider [Grafana Mimir](https://grafana.com/docs/mimir/latest/) if you want metrics from many hosts in one place. Alloy can also collect CPU and memory use per container with its [cAdvisor component](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.cadvisor/), which needs a privileged container.
+Prometheus keeps metrics for 15 days, set by `--storage.tsdb.retention.time` in `compose.yaml`. For a longer history, raise it, for example to `90d`, then run `docker compose up -d`. To keep logs longer, raise `retention_period` in `loki/config.yaml` the same way, then run `docker compose restart loki`. Consider [Grafana Mimir](https://grafana.com/docs/mimir/latest/) if you want metrics from many hosts in one place. Alloy can also collect CPU and memory use per container, with alerts for restart loops and out-of-memory kills, as [Container rules](#container-rules) shows.
 
 ### Sending a test alert
 
@@ -571,6 +571,107 @@ An app that takes a long time to start the first time can fail three probes befo
 The other apps open no port by default, so nothing outside their container can probe them. Their own Docker health check still runs, and something that watches Docker health tells you when it fails. Each app's monitoring page says what else covers it. docker-smtp-relay and docker-nut-upsd do answer on their service ports: a TCP probe of port 25 that expects the `220` greeting, or of port 3493, tells you that they serve. For docker-caddy, probe one of your own sites.
 
 If you run no metric store, an uptime prober can make the same check. Point it at the same address, pass on status `200` only, use a 5-second timeout, check every 60 seconds, alert after 3 failures in a row, and wait out the app's first start. A prober in another container calls the app by its container name, so that name must be in the app's `ALLOWED_HOSTS` too.
+
+## Container rules
+
+A restart loop or an out-of-memory kill looks the same in every container, so no app ships a rule for it. These two rules cover every container on the host, from the container metrics that Alloy's [cAdvisor component](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.cadvisor/) reports. cAdvisor needs a privileged Alloy container, which can reach everything on the host, so the starting stack leaves it out.
+
+To add it, run `cp -r docs/examples/monitoring/containers/. monitoring/` from the folder you cloned this repository into. That adds the three files below and replaces none. Then run `docker compose up -d` and `docker compose restart prometheus` in the `monitoring` folder, so Alloy starts with cAdvisor and Prometheus reads the new rule file.
+
+`compose.override.yaml`, which Docker Compose reads on its own beside `compose.yaml`:
+
+<!-- include: examples/monitoring/containers/compose.override.yaml -->
+
+```yaml
+# Adds container metrics to the starting stack, for the container rules.
+# Docker Compose reads this file on its own when it sits beside compose.yaml.
+# See docs/monitoring.md, "Container rules".
+services:
+  alloy:
+    privileged: true  # cAdvisor reads every container's resource use and the kernel's log of out-of-memory kills
+    # The image's own arguments, with the alloy folder in place of one file,
+    # so Alloy loads containers.alloy beside config.alloy.
+    command: ["run", "/etc/alloy", "--storage.path=/var/lib/alloy/data"]
+    volumes:
+      - "./alloy/containers.alloy:/etc/alloy/containers.alloy:ro"
+      # The host folders cAdvisor reads, as Alloy's cAdvisor documentation lists them.
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:rw"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"
+      - "/dev/disk/:/dev/disk:ro"
+```
+
+<!-- /include -->
+
+`alloy/containers.alloy`, which Alloy loads beside `config.alloy`:
+
+<!-- include: examples/monitoring/containers/alloy/containers.alloy -->
+
+```alloy
+// Read every container's CPU, memory, restarts and out-of-memory kills, and send them to Prometheus.
+// Alloy loads this file beside config.alloy, as compose.override.yaml sets up.
+prometheus.exporter.cadvisor "containers" {
+	docker_only = true
+
+	// Left on, cAdvisor turns each container's environment variables into labels,
+	// and an app's token or password would end up in Prometheus.
+	store_container_labels = false
+}
+
+prometheus.scrape "containers" {
+	targets    = prometheus.exporter.cadvisor.containers.targets
+	forward_to = [prometheus.remote_write.local.receiver]
+}
+```
+
+<!-- /include -->
+
+`prometheus/rules/containers.yaml`:
+
+<!-- include: examples/monitoring/containers/prometheus/rules/containers.yaml -->
+
+```yaml
+# Alerts for every container on the host, from the container metrics cAdvisor reports.
+# They need the cAdvisor block in alloy/containers.alloy.
+# docs/monitoring.md, "Container rules", says what each rule can miss.
+groups:
+  - name: containers
+    rules:
+      - alert: ContainerRestarting
+        expr: |
+          label_replace(
+            changes(container_start_time_seconds{name!=""}[15m]) >= 3,
+            "container", "$1", "name", "(.+)"
+          )
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.container }} keeps restarting"
+          description: "The container {{ $labels.container }} started again at least {{ $value }} times in the last 15 minutes. Read its log to see why it stops."
+      - alert: ContainerOutOfMemory
+        expr: |
+          label_replace(
+            increase(container_oom_events_total{name!=""}[10m]) > 0,
+            "container", "$1", "name", "(.+)"
+          )
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A process in {{ $labels.container }} ran out of memory"
+          description: "The kernel stopped a process in the container {{ $labels.container }} because the container reached its memory limit or the host ran out of memory."
+```
+
+<!-- /include -->
+
+Each rule names the container in its `container` label, as the log rules do. Both can miss a fault:
+
+- `ContainerRestarting` counts the starts cAdvisor sees. A container that stops within a second of each start is rarely running when Alloy reads the metrics, so the rule can miss it. That app's own down alert or health probe tells you instead.
+- `ContainerOutOfMemory` counts the kills cAdvisor finds in the kernel's log. If cAdvisor cannot read that log, it stops counting and writes only a line in Alloy's log. It also misses some kills, such as one that stops the container itself. So a quiet count does not mean that no process ran out of memory. When a kill stops a container and Docker starts it again, `ContainerRestarting` is the rule that tells you. To check one container by hand, read the `oom_kill` count in the `memory.events` file of its folder under `/sys/fs/cgroup`.
+
+Do not write a log rule that looks for "out of memory" in every container's log instead. Apps write text from outside into their logs, such as issue titles, show names and release titles, so such a rule fires on a release that has those words in its title.
 
 ## Adding dashboards
 

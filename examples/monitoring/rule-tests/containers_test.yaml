@@ -1,0 +1,48 @@
+# Checks containers/prometheus/rules/containers.yaml with promtool test rules.
+rule_files:
+  - ../containers/prometheus/rules/containers.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      # Starts again every two minutes.
+      - series: 'container_start_time_seconds{job="integrations/cadvisor", name="crash-loop"}'
+        values: "0 0 120 120 240 240 360 360"
+      # Started once and stays up.
+      - series: 'container_start_time_seconds{job="integrations/cadvisor", name="steady"}'
+        values: "0 0 0 0 0 0 0 0"
+      - series: 'container_oom_events_total{job="integrations/cadvisor", name="worker"}'
+        values: "0 0 0 1 1 1 1 1"
+      - series: 'container_oom_events_total{job="integrations/cadvisor", name="steady"}'
+        values: "0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ContainerRestarting
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ContainerRestarting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: integrations/cadvisor
+              name: crash-loop
+              container: crash-loop
+            exp_annotations:
+              summary: "crash-loop keeps restarting"
+              description: "The container crash-loop started again at least 3 times in the last 15 minutes. Read its log to see why it stops."
+      - eval_time: 2m
+        alertname: ContainerOutOfMemory
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: ContainerOutOfMemory
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: integrations/cadvisor
+              name: worker
+              container: worker
+            exp_annotations:
+              summary: "A process in worker ran out of memory"
+              description: "The kernel stopped a process in the container worker because the container reached its memory limit or the host ran out of memory."

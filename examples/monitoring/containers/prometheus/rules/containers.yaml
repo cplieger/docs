@@ -1,0 +1,30 @@
+# Alerts for every container on the host, from the container metrics cAdvisor reports.
+# They need the cAdvisor block in alloy/containers.alloy.
+# docs/monitoring.md, "Container rules", says what each rule can miss.
+groups:
+  - name: containers
+    rules:
+      - alert: ContainerRestarting
+        expr: |
+          label_replace(
+            changes(container_start_time_seconds{name!=""}[15m]) >= 3,
+            "container", "$1", "name", "(.+)"
+          )
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.container }} keeps restarting"
+          description: "The container {{ $labels.container }} started again at least {{ $value }} times in the last 15 minutes. Read its log to see why it stops."
+      - alert: ContainerOutOfMemory
+        expr: |
+          label_replace(
+            increase(container_oom_events_total{name!=""}[10m]) > 0,
+            "container", "$1", "name", "(.+)"
+          )
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A process in {{ $labels.container }} ran out of memory"
+          description: "The kernel stopped a process in the container {{ $labels.container }} because the container reached its memory limit or the host ran out of memory."

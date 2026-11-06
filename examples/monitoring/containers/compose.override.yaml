@@ -1,0 +1,17 @@
+# Adds container metrics to the starting stack, for the container rules.
+# Docker Compose reads this file on its own when it sits beside compose.yaml.
+# See docs/monitoring.md, "Container rules".
+services:
+  alloy:
+    privileged: true  # cAdvisor reads every container's resource use and the kernel's log of out-of-memory kills
+    # The image's own arguments, with the alloy folder in place of one file,
+    # so Alloy loads containers.alloy beside config.alloy.
+    command: ["run", "/etc/alloy", "--storage.path=/var/lib/alloy/data"]
+    volumes:
+      - "./alloy/containers.alloy:/etc/alloy/containers.alloy:ro"
+      # The host folders cAdvisor reads, as Alloy's cAdvisor documentation lists them.
+      - "/:/rootfs:ro"
+      - "/var/run:/var/run:rw"
+      - "/sys:/sys:ro"
+      - "/var/lib/docker/:/var/lib/docker:ro"
+      - "/dev/disk/:/dev/disk:ro"

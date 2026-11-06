@@ -1,0 +1,14 @@
+// Read every container's CPU, memory, restarts and out-of-memory kills, and send them to Prometheus.
+// Alloy loads this file beside config.alloy, as compose.override.yaml sets up.
+prometheus.exporter.cadvisor "containers" {
+	docker_only = true
+
+	// Left on, cAdvisor turns each container's environment variables into labels,
+	// and an app's token or password would end up in Prometheus.
+	store_container_labels = false
+}
+
+prometheus.scrape "containers" {
+	targets    = prometheus.exporter.cadvisor.containers.targets
+	forward_to = [prometheus.remote_write.local.receiver]
+}

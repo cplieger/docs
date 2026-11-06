@@ -29,6 +29,7 @@ PAGES = ("README.md", "CONTRIBUTING.md", "docs/*.md")
 NOT_SHOWN = frozenset(
     {
         "examples/monitoring/rule-tests/app-alive_test.yaml",
+        "examples/monitoring/rule-tests/containers_test.yaml",
         "examples/monitoring/grafana/grafana/dashboards/.gitkeep",
     }
 )
