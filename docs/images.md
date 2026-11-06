@@ -23,7 +23,7 @@ Each release publishes these tags, on both registries:
 | `vX.Y.Z` | `knell:v2.2.1` | One release |
 | `sha-<commit>` | `knell:sha-<40 characters>` | The build of one commit of the app's repository |
 
-For an image at version 1 or later, only a new major version needs action on your side, such as `v3` after `v2`. Its release notes say what to change. An image still at version 0, such as `v0.6`, can need a change in a minor version.
+For an image at version 1 or later, only a new major version needs action on your side, such as `v3` after `v2`. Its release notes say what to change. An image still at version 0, such as `v0.6`, can need a change in a minor version. An app's alert rule files are not in the image. When you upgrade, fetch them again for the new version, as [Loading an app's alert rules](monitoring.md#loading-an-apps-alert-rules) shows.
 
 Use `vX` for a server you want to keep up to date without surprises. It moves to every new feature and fix within the major version you chose. It never moves to the next major version. For an image at version 0, use `v0.Y` instead. Use `latest` to try an image.
 

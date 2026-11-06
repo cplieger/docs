@@ -12,15 +12,15 @@ A reverse proxy receives the visitor's request on ports 80 and 443 and passes it
 - `X-Forwarded-For` and `X-Forwarded-Proto`, which tell the app the visitor's address and whether the visitor used HTTPS.
 - Requests as large as the app accepts, such as a file upload, even when one takes minutes to arrive.
 
-| App | Port | Login | WebSocket | Live updates | Largest request body |
-| --- | --- | --- | --- | --- | --- |
-| web-terminal-server | 7681 | `AUTH_PASSWORD` | `/ws` | `/api/sessions/events` | 64 KiB |
-| web-terminal-kiro | 9848 | none | `/ws` | `/api/sessions/events` | 64 KiB |
-| marotte | 9847 | none | `/api/shell/ws` | `/api/events` | 256 MiB, for a file upload |
-| subflux | 8374 | its own login page | none | `/api/events` | 1 MiB |
-| knell | 9190 | `BEAT_TOKEN` for beats | none | none | none, a beat's body is ignored |
+| App | Port | Login | Health | WebSocket | Live updates | Largest request body |
+| --- | --- | --- | --- | --- | --- | --- |
+| web-terminal-server | 7681 | `AUTH_PASSWORD` | `/healthz`, with the login while `AUTH_PASSWORD` is set | `/ws` | `/api/sessions/events` | 64 KiB |
+| web-terminal-kiro | 9848 | none | `/api/health` | `/ws` | `/api/sessions/events` | 64 KiB |
+| marotte | 9847 | none | `/api/health` | `/api/shell/ws` | `/api/events` | 256 MiB, for a file upload |
+| subflux | 8374 | its own login page | `/api/health` | none | `/api/events` | 1 MiB |
+| knell | 9190 | `BEAT_TOKEN` for beats | `/healthz` | none | none | none, a beat's body is ignored |
 
-The apps already ask a proxy not to collect their live updates, with the `X-Accel-Buffering: no` header. They also send a keep-alive message at regular intervals. Both nginx and Nginx Proxy Manager honor that header. The examples still turn off collecting in the proxy, and keep a quiet connection open longer. The metrics app plex-exporter and seadex-scout's feed need no proxy. They serve plain HTTP to a scraper or to Sonarr and Radarr on your network.
+The apps already ask a proxy not to collect their live updates, with the `X-Accel-Buffering: no` header. They also send a keep-alive message at regular intervals. Both nginx and Nginx Proxy Manager honor that header. The examples still turn off collecting in the proxy, and keep a quiet connection open longer. An app's `/metrics` page answers without a login. A scraper reaches it on the `monitoring` network, so do not route it through a proxy that faces the internet. With Caddy, put `respond /metrics 404` in the site block. plex-exporter and seadex-scout's feed need no proxy at all. They serve plain HTTP to a scraper or to Sonarr and Radarr on your network.
 
 marotte and web-terminal-kiro have no login of their own. Anyone who reaches them can use marotte's agent and shell, or web-terminal-kiro's root shell, on your files. The proxy examples below add no login, so use them for these two only with the login from [Adding a login on a reverse proxy](proxy-login.md). For single sign-on instead of a password, see the security pages of [marotte](https://github.com/cplieger/marotte/blob/main/docs/hardening.md#who-can-reach-it) and [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/main/docs/hardening.md#behind-a-reverse-proxy).
 
@@ -476,7 +476,7 @@ The proxy keeps its fixed address on the shared network, so `TRUSTED_PROXIES` st
 
 Two settings on the app match the proxy:
 
-- `ALLOWED_HOSTS` lists every name you open the app at, without `https://` or a port. The app reads only the `Host` header and ignores `X-Forwarded-Host`, so the proxy must pass the original `Host`, which all four examples do. A request for a name not on the list gets `403` with `host not allowed`. The app's own healthcheck uses `localhost` from inside the container and is always allowed. subflux sets the same list as `allowed_hosts` in its config file.
+- `ALLOWED_HOSTS` lists every name you open the app at, without `https://` or a port. The app reads only the `Host` header and ignores `X-Forwarded-Host`, so the proxy must pass the original `Host`, which all four examples do. A request for a name not on the list gets `403` with `host not allowed`. The app's own healthcheck uses `localhost` from inside the container and is always allowed. A scraper or uptime prober in another container calls the app by its container name, so add that name to `ALLOWED_HOSTS` too. subflux sets the same list as `allowed_hosts` in its config file.
 - `TRUSTED_PROXIES` lists the proxy's address. The app then reads the visitor's address from `X-Forwarded-For` and writes it in its access log as `client_ip`. Without it, the log shows the proxy's address. Each entry is an address or a range such as `172.30.0.0/24`, and the app ignores an entry it cannot read, with a warning.
 
 In web-terminal-server, web-terminal-kiro, marotte and knell, the list changes only the address in the logs. subflux sets the same list as `trusted_proxies` in its config file, and uses it for more:

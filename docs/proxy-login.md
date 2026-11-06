@@ -367,7 +367,7 @@ The browser fetches the app's manifest, the file that lets it install the app, w
 
 `ALLOWED_HOSTS` and `TRUSTED_PROXIES` stay as [Telling the app about the proxy](reverse-proxy.md#telling-the-app-about-the-proxy) sets them. `ALLOWED_HOSTS` stays, because the proxy passes each request on with its original `Host`. `TRUSTED_PROXIES` stays, because the proxy still connects from its fixed address, `172.30.0.2`.
 
-The app's own health check runs inside its container at `127.0.0.1`, so it never meets the login. A monitor that checks the address from outside gets `401` without the login, which still shows that the proxy is up.
+The app's own health check runs inside its container at `127.0.0.1`, so it never meets the login. A `401` from outside proves only that the proxy is up. To know that the app is up, probe its health page on the `monitoring` network, by a name in `ALLOWED_HOSTS`, as [Knowing that an app is alive](monitoring.md#knowing-that-an-app-is-alive) shows.
 
 ## Checking the login
 

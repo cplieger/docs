@@ -4,7 +4,7 @@ These are guides for running the cplieger container images with Docker Compose, 
 
 ## What is here
 
-- [Monitoring and alerts](docs/monitoring.md) sets up notifications from the apps' logs, then metrics and dashboards. Start here if an app's README says it ships alert rules or a dashboard.
+- [Monitoring and alerts](docs/monitoring.md) sets up alerts from the apps' metrics and logs, then dashboards. Start here if an app's README says it ships alert rules or a dashboard.
 - [Image tags, updates and verification](docs/images.md) explains which tag to run and how updates reach you. It also shows how to check an image's signature and software bill of materials.
 - [Hardening a compose file](docs/hardening.md) shows the settings that limit what a container can do, and how to keep passwords in secret files.
 - [Running an app behind a reverse proxy](docs/reverse-proxy.md) puts an app that answers over HTTP behind Caddy, nginx, Traefik or Nginx Proxy Manager, with HTTPS.
@@ -24,7 +24,7 @@ Each code block in a guide is a copy of a file under [`examples/`](examples/), o
 
 ## Using the examples
 
-Run `git clone https://github.com/cplieger/docs.git`, then copy the folder of the example you want. Two kinds of example are copied over another one. For dashboards, copy `examples/monitoring/stack`, then add the files from `examples/monitoring/grafana`, as [its guide](docs/monitoring.md#adding-dashboards) explains. For a proxy login, copy the proxy's folder, then the files from its folder under `examples/reverse-proxy/login`, as [Adding a login on a reverse proxy](docs/proxy-login.md) explains.
+Run `git clone https://github.com/cplieger/docs.git`, then copy the folder of the example you want. Some examples are copied over another one. For dashboards, copy `examples/monitoring/stack`, then add the files from `examples/monitoring/grafana`, as [its guide](docs/monitoring.md#adding-dashboards) explains. For container rules, add the files from `examples/monitoring/containers` the same way, as [Container rules](docs/monitoring.md#container-rules) explains. For a proxy login, copy the proxy's folder, then the files from its folder under `examples/reverse-proxy/login`, as [Adding a login on a reverse proxy](docs/proxy-login.md) explains.
 
 Change `app.example.com` to your own name, `you@example.com` to your own address, and every password and token to your own.
 
