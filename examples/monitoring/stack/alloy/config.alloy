@@ -37,6 +37,25 @@ prometheus.scrape "plex_exporter" {
 	forward_to = [prometheus.remote_write.local.receiver]
 }
 
+// Check each app's health page once a minute. Add one target per app.
+// The container label names the app in the alert, as the log rules do.
+prometheus.exporter.blackbox "apps" {
+	config = "{ modules: { http_2xx: { prober: http, timeout: 5s } } }"
+
+	target {
+		name    = "plex-exporter"
+		address = "http://plex-exporter:9594/api/health"
+		module  = "http_2xx"
+		labels  = {"container" = "plex-exporter"}
+	}
+}
+
+prometheus.scrape "apps_alive" {
+	targets         = prometheus.exporter.blackbox.apps.targets
+	scrape_interval = "60s"
+	forward_to      = [prometheus.remote_write.local.receiver]
+}
+
 prometheus.remote_write "local" {
 	endpoint {
 		url = "http://prometheus:9090/api/v1/write"

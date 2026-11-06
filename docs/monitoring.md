@@ -93,7 +93,7 @@ volumes:
 
 Alloy reads container logs through the Docker socket. A program that can reach that socket controls Docker, even with `:ro`, so mount it only into images you trust. [The Docker socket](hardening.md#the-docker-socket) says more.
 
-`alloy/config.alloy` finds every container and sends its log to Loki. Each log stream gets a `container` label with the container's name, which is the label the shipped log alert rules select on. The file also has one `prometheus.scrape` block per app that has a metrics page, which reads the app's metrics and sends them to Prometheus. Its one block reads plex-exporter, the app [Reaching an app's metrics page](#reaching-an-apps-metrics-page) tries the stack with. Change it to your own apps.
+`alloy/config.alloy` finds every container and sends its log to Loki. Each log stream gets a `container` label with the container's name, which is the label the shipped log alert rules select on. The file also has one `prometheus.scrape` block per app that has a metrics page, which reads the app's metrics and sends them to Prometheus. Its one block reads plex-exporter, the app [Reaching an app's metrics page](#reaching-an-apps-metrics-page) tries the stack with. Change it to your own apps. The `prometheus.exporter.blackbox` block checks each app's health page, as [Knowing that an app is alive](#knowing-that-an-app-is-alive) explains.
 
 <!-- include: examples/monitoring/stack/alloy/config.alloy -->
 
@@ -135,6 +135,25 @@ prometheus.scrape "plex_exporter" {
 	job_name   = "plex-exporter"
 	targets    = [{"__address__" = "plex-exporter:9594"}]
 	forward_to = [prometheus.remote_write.local.receiver]
+}
+
+// Check each app's health page once a minute. Add one target per app.
+// The container label names the app in the alert, as the log rules do.
+prometheus.exporter.blackbox "apps" {
+	config = "{ modules: { http_2xx: { prober: http, timeout: 5s } } }"
+
+	target {
+		name    = "plex-exporter"
+		address = "http://plex-exporter:9594/api/health"
+		module  = "http_2xx"
+		labels  = {"container" = "plex-exporter"}
+	}
+}
+
+prometheus.scrape "apps_alive" {
+	targets         = prometheus.exporter.blackbox.apps.targets
+	scrape_interval = "60s"
+	forward_to      = [prometheus.remote_write.local.receiver]
 }
 
 prometheus.remote_write "local" {
@@ -502,6 +521,56 @@ For your own apps, add the same `networks:` lines to each app's compose file, an
 ## Loading metric alert rules
 
 Apps with a metrics page ship `alerts/promql.yaml`. Run `bash fetch.sh <repository> promql` to save it in `prometheus/rules`. Prometheus reads rule files only when it starts or reloads, so run `docker compose restart prometheus` afterwards. The rules use the `job` label from your scrape block, so keep the job name the rule file names. Firing metric alerts go to the same Alertmanager as the log alerts.
+
+## Knowing that an app is alive
+
+Every cplieger image checks its own health, and Docker marks the container unhealthy when that check fails. Docker's health status notifies nobody on its own, and Docker does not restart an unhealthy container. A stopped app writes no log line either, so no log rule sees it stop. An app with a metrics page ships a rule that alerts when Prometheus can no longer read that page. To know that an app also does its own work, probe its health page from outside.
+
+The starting stack probes health pages with Alloy's [`prometheus.exporter.blackbox`](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.blackbox/) component. The `prometheus.exporter.blackbox` block in `alloy/config.alloy` checks plex-exporter's health page once a minute, with a 5-second timeout. `prometheus/rules/app-alive.yaml` alerts when three probes in a row fail:
+
+<!-- include: examples/monitoring/stack/prometheus/rules/app-alive.yaml -->
+
+```yaml
+# Alerts when an app's health page stops answering 200, from Alloy's blackbox probe.
+# alloy/config.alloy probes each app once a minute, so this fires on the third failed probe.
+# docs/monitoring.md explains what each app's health page checks.
+groups:
+  - name: app-alive
+    rules:
+      - alert: AppHealthCheckFailing
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.container }} fails its health check"
+          description: "The health page of {{ $labels.container }} answered no 200 to three probes in a row. The app is down, still starting, or reports a fault."
+```
+
+<!-- /include -->
+
+Until plex-exporter runs, as [Reaching an app's metrics page](#reaching-an-apps-metrics-page) shows, its probe fails and `AppHealthCheckFailing` fires for it after three minutes. Change the block to your own apps, with one `target` per app: the container name in `name` and in the `container` label, and the health address in `address`. Alloy calls the app by its container name, so the app must join the `monitoring` network. If the app has an `ALLOWED_HOSTS` setting, or `allowed_hosts` in subflux's config, add the container name to that list, or the app refuses the probe. After you change the file, run `docker compose restart alloy`.
+
+These apps serve a health page, at these addresses for the container names of their example compose files:
+
+| App | Health address | Before you probe it |
+| --- | --- | --- |
+| grelot | `http://grelot:8080/healthz` | |
+| knell | `http://knell:9190/healthz` | Add `knell` to `ALLOWED_HOSTS` if you set it |
+| marotte | `http://marotte:9847/api/health` | Add `marotte` to `ALLOWED_HOSTS` if you set it |
+| pg-autodump | `http://pg-autodump:9847/healthz` | |
+| plex-exporter | `http://plex-exporter:9594/api/health` | |
+| subflux | `http://subflux:8374/api/health` | Add `subflux` to `allowed_hosts` if you set it |
+| web-terminal-kiro | `http://web-terminal-kiro:9848/api/health` | Add `web-terminal-kiro` to `ALLOWED_HOSTS` if you set it |
+| web-terminal-server | `http://web-terminal-server:7681/healthz` | Add `web-terminal-server` to `ALLOWED_HOSTS` if you set it. While `AUTH_PASSWORD` is set, the page asks for that login, so give the target a module of its own with `basic_auth` in its `http` settings, as the [blackbox exporter configuration](https://github.com/prometheus/blackbox_exporter/blob/master/CONFIGURATION.md) shows |
+
+A health page answers `200` while the app does its own work, and `503` while it starts, stops or reports a fault of its own. Each app's monitoring page says what its check covers. Check the status code only, and never match the text of the answer.
+
+An app that takes a long time to start the first time can fail three probes before it is ready. web-terminal-kiro downloads kiro-cli for up to 20 minutes on its first start, and marotte allows 5 minutes. Expect the alert once then, or give that app a rule of its own with a longer `for:`.
+
+The other apps open no port by default, so nothing outside their container can probe them. Their own Docker health check still runs, and something that watches Docker health tells you when it fails. Each app's monitoring page says what else covers it. docker-smtp-relay and docker-nut-upsd do answer on their service ports: a TCP probe of port 25 that expects the `220` greeting, or of port 3493, tells you that they serve. For docker-caddy, probe one of your own sites.
+
+If you run no metric store, an uptime prober can make the same check. Point it at the same address, pass on status `200` only, use a 5-second timeout, check every 60 seconds, alert after 3 failures in a row, and wait out the app's first start. A prober in another container calls the app by its container name, so that name must be in the app's `ALLOWED_HOSTS` too.
 
 ## Adding dashboards
 

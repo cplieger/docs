@@ -1,0 +1,28 @@
+# Checks prometheus/rules/app-alive.yaml with promtool test rules.
+# The probe runs once a minute, so the alert fires on the third failed probe in a row.
+rule_files:
+  - ../stack/prometheus/rules/app-alive.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="integrations/blackbox/plex-exporter", container="plex-exporter"}'
+        values: "1 0 0 0 0"
+      - series: 'probe_success{job="integrations/blackbox/knell", container="knell"}'
+        values: "1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: AppHealthCheckFailing
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: AppHealthCheckFailing
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: integrations/blackbox/plex-exporter
+              container: plex-exporter
+            exp_annotations:
+              summary: "plex-exporter fails its health check"
+              description: "The health page of plex-exporter answered no 200 to three probes in a row. The app is down, still starting, or reports a fault."

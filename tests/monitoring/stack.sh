@@ -16,6 +16,22 @@ sudo chown 65534:65534 "$WORK/alertmanager/webhook_url"
 # The rules a reader gets by default, for the image a reader runs by default.
 (cd "$WORK" && bash fetch.sh knell logql)
 
+# The compose file's own Prometheus, so one Renovate bump moves both.
+prometheus_image="$(awk '$1 == "image:" && $2 ~ /^prom\/prometheus:/ { print $2; exit }' "$WORK/compose.yaml")"
+[ -n "$prometheus_image" ] || die "compose.yaml names no prom/prometheus image"
+rule_files=()
+for f in "$DOCS_ROOT"/examples/monitoring/stack/prometheus/rules/*.yaml; do
+  rule_files+=("$(basename "$f")")
+done
+docker run --rm --entrypoint promtool --volume "$DOCS_ROOT/examples/monitoring:/m:ro" --workdir /m/stack/prometheus/rules \
+  "$prometheus_image" check rules "${rule_files[@]}"
+pass "promtool accepts the stack's metric rules"
+for fixture in "$DOCS_ROOT"/examples/monitoring/rule-tests/*_test.yaml; do
+  docker run --rm --entrypoint promtool --volume "$DOCS_ROOT/examples/monitoring:/m:ro" --workdir /m/rule-tests \
+    "$prometheus_image" test rules "$(basename "$fixture")"
+  pass "promtool test rules passes $(basename "$fixture")"
+done
+
 compose up --detach --quiet-pull
 wait_for 120 "Loki is ready" http_ok http://127.0.0.1:3100/ready
 wait_for 60 "Alertmanager is ready" http_ok http://127.0.0.1:9093/-/ready
