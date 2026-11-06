@@ -5,7 +5,9 @@ set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
 
-IMAGE="prom/alertmanager:v0.34.1"
+# The stack's own Alertmanager, so one Renovate bump moves both.
+IMAGE="$(awk '$1 == "image:" && $2 ~ /^prom\/alertmanager:/ { print $2; exit }' "$DOCS_ROOT/examples/monitoring/stack/compose.yaml")"
+[ -n "$IMAGE" ] || die "examples/monitoring/stack/compose.yaml names no prom/alertmanager image"
 
 for file in stack/alertmanager/alertmanager.yml receivers/discord.yml receivers/email.yml; do
   docker run --rm --entrypoint amtool \

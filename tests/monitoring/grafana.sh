@@ -20,15 +20,19 @@ printf '%s\n' "$GRAFANA_PASSWORD" >"$WORK/secrets/grafana_admin_password"
 chmod 600 "$WORK/secrets/grafana_admin_password"
 sudo chown 472:0 "$WORK/secrets/grafana_admin_password"
 # The files a reader gets by default, for the image a reader runs by default.
+# The log rules come from cert-converter, which keeps a LogQL file.
 (
   cd "$WORK"
   bash fetch.sh plex-exporter promql
-  bash fetch.sh plex-exporter logql
+  bash fetch.sh cert-converter logql
   bash fetch.sh plex-exporter dashboard
 )
 
+# The compose file's own Prometheus, so one Renovate bump moves both.
+prometheus_image="$(awk '$1 == "image:" && $2 ~ /^prom\/prometheus:/ { print $2; exit }' "$WORK/compose.yaml")"
+[ -n "$prometheus_image" ] || die "compose.yaml names no prom/prometheus image"
 docker run --rm --entrypoint promtool --volume "$WORK/prometheus:/etc/prometheus:ro" \
-  prom/prometheus:v3.15.0 check rules /etc/prometheus/rules/plex-exporter.yaml
+  "$prometheus_image" check rules /etc/prometheus/rules/plex-exporter.yaml
 pass "promtool accepts the shipped PromQL rules"
 
 compose up --detach --quiet-pull
@@ -40,7 +44,7 @@ wait_for 60 "Prometheus is ready" http_ok http://127.0.0.1:9090/-/ready
 loki_rules() {
   local rules
   rules="$(curl -fsS http://127.0.0.1:3100/loki/api/v1/rules)" || return 1
-  grep -q 'name: plex-exporter' <<<"$rules"
+  grep -q 'name: cert-converter' <<<"$rules"
 }
 wait_for 120 "Loki's ruler loaded the shipped LogQL rules" loki_rules
 
