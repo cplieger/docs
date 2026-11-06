@@ -322,14 +322,14 @@ The other cplieger apps ship no alert rules. To get every alert, move to the sta
 
 These steps add Prometheus to a stack you set up with Alloy, Loki and Alertmanager. Your `loki` and `alertmanager` folders and the two scripts stay as they are.
 
-1. In the folder you cloned this repository into, run `git pull`, or clone it again.
+1. In the folder you cloned this repository into, run `git -C docs pull`.
 2. From that folder, run `cp -r docs/examples/monitoring/stack/prometheus monitoring/`.
 3. Copy `docs/examples/monitoring/stack/compose.yaml` over `monitoring/compose.yaml`, and `docs/examples/monitoring/stack/alloy/config.alloy` over `monitoring/alloy/config.alloy`. Carry over any change you made to your copies first.
 4. In `alloy/config.alloy`, keep one `prometheus.scrape` block per app that has a metrics page, as [Reaching an app's metrics page](#reaching-an-apps-metrics-page) explains.
 5. Fetch each of those apps' metric rules, as [Loading metric alert rules](#loading-metric-alert-rules) shows.
 6. Run `docker compose up -d` in the `monitoring` folder.
 
-The new `compose.yaml` names the stack's network `monitoring`, so `docker compose up -d` recreates the containers on it. Your logs and alerts stay in their volumes.
+The new `compose.yaml` names the stack's network `monitoring`, so `docker compose up -d` recreates the containers on it. You can then remove the old network with `docker network rm monitoring_default`. Your logs and alerts stay in their volumes.
 
 ## Loading an app's alert rules
 
