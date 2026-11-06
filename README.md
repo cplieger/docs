@@ -16,7 +16,7 @@ Each app's own README covers its settings, and its `docs/` pages cover what is s
 
 Each code block in a guide is a copy of a file under [`examples/`](examples/), or of a marked part of one. A check fails when the two differ, or when a block has no file. A workflow starts each example on a clean machine whenever an example changes, and checks that it does what its guide says. The checks include these:
 
-- The monitoring stack sends a real alert to a test webhook.
+- The monitoring stack sends a real metric alert and a real log alert to a test webhook, and alerts when an app's health page fails.
 - The hardened compose file starts healthy and reads its secret from a file.
 - The image checks pass against published images.
 - Each reverse proxy passes WebSockets, live updates, forwarded headers and a large upload.

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Boots examples/monitoring/stack, checks that Prometheus starts with the
-# retention the guide names, and proves two alerts travel from a real container
-# log line through Alloy, Loki's ruler and Alertmanager to a webhook.
+# Boots examples/monitoring/stack, checks its metric rules with promtool and that
+# Prometheus starts with the retention the guide names, and proves alerts reach a
+# webhook through Alertmanager: two from real container log lines through Alloy
+# and Loki's ruler, the metric test alert, and the health probe's alert.
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
@@ -19,7 +20,7 @@ sudo chown 65534:65534 "$WORK/alertmanager/webhook_url"
 # The compose file's own Prometheus, so one Renovate bump moves both.
 prometheus_image="$(awk '$1 == "image:" && $2 ~ /^prom\/prometheus:/ { print $2; exit }' "$WORK/compose.yaml")"
 [ -n "$prometheus_image" ] || die "compose.yaml names no prom/prometheus image"
-rule_files=()
+rule_files=(../alert-test.yaml)
 for f in "$DOCS_ROOT"/examples/monitoring/stack/prometheus/rules/*.yaml; do
   rule_files+=("$(basename "$f")")
 done
@@ -72,6 +73,11 @@ sink_has() {
     >/dev/null
 }
 wait_for 360 "the webhook received AlertTest" sink_has AlertTest alert-test
+wait_for 60 "the webhook received MetricAlertTest" sink_has MetricAlertTest alert-test
+[ ! -e "$WORK/prometheus/rules/alert-test.yaml" ] || die "test-alert.sh left its metric test rule in prometheus/rules"
+pass "test-alert.sh removed its metric test rule"
+# No plex-exporter runs here, so the stack's health probe of it fails.
+wait_for 420 "the webhook received AppHealthCheckFailing for plex-exporter" sink_has AppHealthCheckFailing plex-exporter
 wait_for 360 "the webhook received knell's shipped KnellExitedWithError" sink_has KnellExitedWithError knell
 
 active=$(curl -fsS 'http://127.0.0.1:9093/api/v2/alerts?filter=alertname%3D%22AlertTest%22' | jq length)

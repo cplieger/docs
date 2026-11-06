@@ -257,7 +257,7 @@ analytics:
 # Sends every alert to one webhook. docs/monitoring.md shows Discord and email instead.
 route:
   receiver: notify
-  group_by: [alertname, container]
+  group_by: [alertname, container, job]  # job keeps two apps' metric alerts of one name apart
   group_wait: 30s  # waits this long to collect related alerts into one message
   group_interval: 5m
   repeat_interval: 4h  # reminds you again while an alert keeps firing
@@ -312,23 +312,65 @@ Prometheus keeps metrics for 15 days, set by `--storage.tsdb.retention.time` in 
 
 ### Sending a test alert
 
-`test-alert.sh` starts a short-lived container that writes the words the test rule looks for:
+`test-alert.sh` sends one test alert through each kind of rule. It starts a short-lived container that writes the words the log test rule looks for, and puts a metric test rule in `prometheus/rules` for three minutes. `prometheus/alert-test.yaml` is that metric rule. It sits outside `prometheus/rules`, so Prometheus reads it only while the script runs:
+
+<!-- include: examples/monitoring/stack/prometheus/alert-test.yaml -->
+
+```yaml
+# A test alert for the metric rules. test-alert.sh copies this file into prometheus/rules,
+# where the rule fires at once, and removes it again three minutes later.
+groups:
+  - name: metric-alert-test
+    rules:
+      - alert: MetricAlertTest
+        expr: vector(1)
+        for: 0m
+        labels:
+          severity: info
+          container: alert-test
+        annotations:
+          summary: "Test alert from Prometheus"
+          description: >
+            Prometheus checked its test rule and fired it.
+            If you got this message, metric alerts reach you.
+            It stops firing when test-alert.sh removes the rule.
+```
+
+<!-- /include -->
+
+`test-alert.sh`:
 
 <!-- include: examples/monitoring/stack/test-alert.sh -->
 
 ```sh
 #!/usr/bin/env bash
-# Starts a container named alert-test that logs "alert test", then stays up for two minutes.
-# Alloy reads that line, Loki's AlertTest rule fires and Alertmanager sends the alert.
+# Sends two test alerts, one from a log line and one from a metric rule.
+# A container named alert-test logs "alert test" and stays up for two minutes,
+# so Alloy reads that line and Loki's AlertTest rule fires.
+# prometheus/alert-test.yaml goes into prometheus/rules for three minutes,
+# so Prometheus's MetricAlertTest rule fires. Run it from the folder that holds compose.yaml.
 set -euo pipefail
 
 docker run --rm --detach --name alert-test busybox:1.37.0 sh -c 'echo "alert test"; sleep 120'
-echo "The test alert should reach you within three minutes."
+
+# Prometheus reads its rule files again when it gets the HUP signal.
+remove_metric_rule() {
+  rm -f prometheus/rules/alert-test.yaml
+  docker kill --signal HUP prometheus >/dev/null
+}
+trap remove_metric_rule EXIT
+cp prometheus/alert-test.yaml prometheus/rules/alert-test.yaml
+chmod 644 prometheus/rules/alert-test.yaml
+docker kill --signal HUP prometheus >/dev/null
+
+echo "Both test alerts should reach you within three minutes."
+echo "This script waits that long, then removes the metric test rule."
+sleep 180
 ```
 
 <!-- /include -->
 
-Run `bash test-alert.sh`. Within about three minutes the alert `AlertTest` reaches your webhook. To see it in Alertmanager, run `curl -s http://localhost:9093/api/v2/alerts` on the host. To open the Alertmanager page instead, run `ssh -L 9093:localhost:9093 <you>@<host>` on your computer and open `http://localhost:9093` there. If nothing arrives, run `docker compose logs alertmanager` and look for a line with `level=ERROR`, which names the problem with your webhook.
+Run `bash test-alert.sh` in the `monitoring` folder. It waits three minutes, and within that time the alerts `AlertTest` and `MetricAlertTest` reach your webhook. If only `AlertTest` arrives, metric alerts do not reach Alertmanager: run `docker compose logs prometheus` and look for a line with `level=ERROR`. To see the alerts in Alertmanager, run `curl -s http://localhost:9093/api/v2/alerts` on the host. To open the Alertmanager page instead, run `ssh -L 9093:localhost:9093 <you>@<host>` on your computer and open `http://localhost:9093` there. If nothing arrives, run `docker compose logs alertmanager` and look for a line with `level=ERROR`, which names the problem with your webhook.
 
 ### If you run Loki and no Prometheus
 
@@ -344,14 +386,15 @@ The other cplieger apps ship no alert rules. To get every alert, move to the sta
 
 ### Coming from the logs-only stack
 
-These steps add Prometheus to a stack you set up with Alloy, Loki and Alertmanager. Your `loki` and `alertmanager` folders and the two scripts stay as they are.
+These steps add Prometheus to a stack you set up with Alloy, Loki and Alertmanager. Your `loki` folder and `fetch.sh` stay as they are.
 
 1. In the folder you cloned this repository into, run `git -C docs pull`.
 2. From that folder, run `cp -r docs/examples/monitoring/stack/prometheus monitoring/`.
-3. Copy `docs/examples/monitoring/stack/compose.yaml` over `monitoring/compose.yaml`, and `docs/examples/monitoring/stack/alloy/config.alloy` over `monitoring/alloy/config.alloy`. Carry over any change you made to your copies first.
-4. In `alloy/config.alloy`, keep one `prometheus.scrape` block per app that has a metrics page, as [Reaching an app's metrics page](#reaching-an-apps-metrics-page) explains.
-5. Fetch each of those apps' metric rules, as [Loading metric alert rules](#loading-metric-alert-rules) shows.
-6. Run `docker compose up -d` in the `monitoring` folder.
+3. Copy `docs/examples/monitoring/stack/compose.yaml` over `monitoring/compose.yaml`, `docs/examples/monitoring/stack/alloy/config.alloy` over `monitoring/alloy/config.alloy`, and `docs/examples/monitoring/stack/test-alert.sh` over `monitoring/test-alert.sh`. Carry over any change you made to your copies first.
+4. In `alloy/config.alloy`, keep one `prometheus.scrape` block per app that has a metrics page, as [Reaching an app's metrics page](#reaching-an-apps-metrics-page) explains, and one probe `target` per app with a health page, as [Knowing that an app is alive](#knowing-that-an-app-is-alive) explains.
+5. In `alertmanager/alertmanager.yml`, add `job` to `group_by`, so it reads `group_by: [alertname, container, job]`. Metric alerts carry the scrape's `job` and no `container`, so without it the same alert from two apps arrives as one message.
+6. Fetch each of those apps' metric rules, as [Loading metric alert rules](#loading-metric-alert-rules) shows.
+7. Run `docker compose up -d` in the `monitoring` folder, then `bash test-alert.sh` to check that both kinds of alert reach you.
 
 The new `compose.yaml` names the stack's network `monitoring`, so `docker compose up -d` recreates the containers on it. You can then remove the old network with `docker network rm monitoring_default`. Your logs and alerts stay in their volumes.
 
@@ -442,7 +485,7 @@ Discord, with the webhook address from the channel's Integrations settings in `a
 # Put the channel's webhook address in alertmanager/discord_webhook_url, on one line.
 route:
   receiver: discord
-  group_by: [alertname, container]
+  group_by: [alertname, container, job]  # job keeps two apps' metric alerts of one name apart
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
@@ -464,7 +507,7 @@ Email, with your mail account's password in `alertmanager/smtp_password`:
 # Put your mail account's password in alertmanager/smtp_password, on one line.
 route:
   receiver: email
-  group_by: [alertname, container]
+  group_by: [alertname, container, job]  # job keeps two apps' metric alerts of one name apart
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
