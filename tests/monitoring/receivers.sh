@@ -7,7 +7,7 @@ source "$(dirname "$0")/../lib.sh"
 
 IMAGE="prom/alertmanager:v0.34.1"
 
-for file in minimal/alertmanager/alertmanager.yml receivers/discord.yml receivers/email.yml; do
+for file in stack/alertmanager/alertmanager.yml receivers/discord.yml receivers/email.yml; do
   docker run --rm --entrypoint amtool \
     --volume "$DOCS_ROOT/examples/monitoring/$(dirname "$file"):/cfg:ro" \
     "$IMAGE" check-config "/cfg/$(basename "$file")"

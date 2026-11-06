@@ -18,11 +18,11 @@ Start with the first three. Loki checks the apps' log rules, and Alertmanager se
 
 ## The smallest stack sends notifications only
 
-This stack runs Alloy, Loki and Alertmanager. It reads the logs of every container on the same host, so your apps need no change. To copy it to your host, run `git clone https://github.com/cplieger/docs.git`, then `cp -r docs/examples/monitoring/minimal monitoring`. The `monitoring` folder then holds the files below, with the same names and subfolders.
+This stack runs Alloy, Loki and Alertmanager. It reads the logs of every container on the same host, so your apps need no change. To copy it to your host, run `git clone https://github.com/cplieger/docs.git`, then `cp -r docs/examples/monitoring/stack monitoring`. The `monitoring` folder then holds the files below, with the same names and subfolders.
 
 `compose.yaml`:
 
-<!-- include: examples/monitoring/minimal/compose.yaml -->
+<!-- include: examples/monitoring/stack/compose.yaml -->
 
 ```yaml
 # Notifications only. Alloy reads the logs of every container on this host,
@@ -74,7 +74,7 @@ Alloy reads container logs through the Docker socket. A program that can reach t
 
 `alloy/config.alloy` finds every container and sends its log to Loki. Each log stream gets a `container` label with the container's name, which is the label the shipped alert rules select on.
 
-<!-- include: examples/monitoring/minimal/alloy/config.alloy -->
+<!-- include: examples/monitoring/stack/alloy/config.alloy -->
 
 ```alloy
 // Find every container on this host.
@@ -112,7 +112,7 @@ loki.write "local" {
 
 `loki/config.yaml` is the config the Loki image ships with, plus four blocks. The ruler reads every rule file in `loki/rules/fake` and sends firing alerts to Alertmanager. The folder is named `fake` because that is the name Loki gives its only user when it runs without logins. The `compactor` and `limits_config` blocks delete logs after 15 days. Without them, Loki keeps every log until the disk is full. The `analytics` block stops Loki sending anonymous usage statistics to Grafana Labs, which it does by default.
 
-<!-- include: examples/monitoring/minimal/loki/config.yaml -->
+<!-- include: examples/monitoring/stack/loki/config.yaml -->
 
 ```yaml
 # A single Loki for one host, based on the config the Loki image ships.
@@ -170,7 +170,7 @@ analytics:
 
 `alertmanager/alertmanager.yml` sends every alert to one webhook:
 
-<!-- include: examples/monitoring/minimal/alertmanager/alertmanager.yml -->
+<!-- include: examples/monitoring/stack/alertmanager/alertmanager.yml -->
 
 ```yaml
 # Sends every alert to one webhook. docs/monitoring.md shows Discord and email instead.
@@ -191,7 +191,7 @@ receivers:
 
 `loki/rules/fake/alert-test.yaml` is a test rule that fires on demand:
 
-<!-- include: examples/monitoring/minimal/loki/rules/fake/alert-test.yaml -->
+<!-- include: examples/monitoring/stack/loki/rules/fake/alert-test.yaml -->
 
 ```yaml
 # A test alert. It fires when a container named alert-test logs the words "alert test".
@@ -230,7 +230,7 @@ Alertmanager must also be able to read `alertmanager/alertmanager.yml`. A file y
 
 `test-alert.sh` starts a short-lived container that writes the words the test rule looks for:
 
-<!-- include: examples/monitoring/minimal/test-alert.sh -->
+<!-- include: examples/monitoring/stack/test-alert.sh -->
 
 ```sh
 #!/usr/bin/env bash
@@ -252,7 +252,7 @@ Every cplieger app that ships alert rules keeps them in its repository's `alerts
 
 `fetch.sh` downloads a rule file or a dashboard into the right folder. Run it from the folder that holds `compose.yaml`. Its first word is the app's repository name on GitHub, such as `knell` or `docker-caddy`. A failed download leaves the file you had in place.
 
-<!-- include: examples/monitoring/minimal/fetch.sh -->
+<!-- include: examples/monitoring/stack/fetch.sh -->
 
 ```sh
 #!/usr/bin/env bash
@@ -376,11 +376,11 @@ After you change the file, run `docker compose restart alertmanager`. Alertmanag
 
 ## The full stack adds dashboards and metrics
 
-The full stack adds Prometheus and Grafana to the smallest stack. Run it in the same folder as the smallest stack. From the folder you cloned this repository into, run `cp -r docs/examples/monitoring/full/. monitoring/`. That replaces `compose.yaml` and `alloy/config.alloy` with the files below and adds the `prometheus` and `grafana` folders. The `loki` and `alertmanager` folders and the two scripts stay as they are.
+The full stack adds Prometheus and Grafana to the smallest stack. Run it in the same folder as the smallest stack. From the folder you cloned this repository into, run `cp -r docs/examples/monitoring/grafana/. monitoring/`. That replaces `compose.yaml` and `alloy/config.alloy` with the files below and adds the `prometheus` and `grafana` folders. The `loki` and `alertmanager` folders and the two scripts stay as they are.
 
 `compose.yaml`:
 
-<!-- include: examples/monitoring/full/compose.yaml -->
+<!-- include: examples/monitoring/grafana/compose.yaml -->
 
 ```yaml
 # Notifications, metrics and dashboards. This is the smallest stack plus Prometheus and Grafana.
@@ -471,7 +471,7 @@ volumes:
 
 `alloy/config.alloy` keeps the log part and adds one `prometheus.scrape` block per app that has a metrics page. Alloy reads the metrics and sends them to Prometheus. Use the job name the app's alert rules expect, which its monitoring page names.
 
-<!-- include: examples/monitoring/full/alloy/config.alloy -->
+<!-- include: examples/monitoring/grafana/alloy/config.alloy -->
 
 ```alloy
 // Find every container on this host.
@@ -524,7 +524,7 @@ prometheus.remote_write "local" {
 
 `prometheus/prometheus.yml`:
 
-<!-- include: examples/monitoring/full/prometheus/prometheus.yml -->
+<!-- include: examples/monitoring/grafana/prometheus/prometheus.yml -->
 
 ```yaml
 # Prometheus stores the metrics Alloy sends it and checks the metric alert rules.
@@ -545,7 +545,7 @@ alerting:
 
 `grafana/provisioning/datasources/datasources.yaml` connects Grafana to Prometheus, Loki and Alertmanager when it first starts:
 
-<!-- include: examples/monitoring/full/grafana/provisioning/datasources/datasources.yaml -->
+<!-- include: examples/monitoring/grafana/grafana/provisioning/datasources/datasources.yaml -->
 
 ```yaml
 # Grafana connects to these three on its first start, so you set nothing up in its pages.
@@ -579,7 +579,7 @@ datasources:
 
 `grafana/provisioning/dashboards/dashboards.yaml` loads every dashboard file in `grafana/dashboards`:
 
-<!-- include: examples/monitoring/full/grafana/provisioning/dashboards/dashboards.yaml -->
+<!-- include: examples/monitoring/grafana/grafana/provisioning/dashboards/dashboards.yaml -->
 
 ```yaml
 # Grafana loads every dashboard file in grafana/dashboards and checks the folder for changes.

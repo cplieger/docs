@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Boots examples/monitoring/minimal and proves two alerts travel from a real
+# Boots examples/monitoring/stack and proves two alerts travel from a real
 # container log line through Alloy, Loki's ruler and Alertmanager to a webhook.
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
 
-use_example monitoring-minimal examples/monitoring/minimal
-add_override tests/monitoring/minimal.compose.yaml
+use_example monitoring-stack examples/monitoring/stack
+add_override tests/monitoring/stack.compose.yaml
 
 printf 'http://sink:8080/\n' >"$WORK/alertmanager/webhook_url"
 # The guide's step 2, as written.

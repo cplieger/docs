@@ -1,4 +1,4 @@
-# Test-only services added to examples/monitoring/minimal. None of the example's services change.
+# Test-only services added to examples/monitoring/stack. None of the example's services change.
 services:
   sink:
     image: python:3.15.2-alpine

@@ -24,7 +24,7 @@ Each code block in a guide is a copy of a file under [`examples/`](examples/), o
 
 ## Using the examples
 
-Run `git clone https://github.com/cplieger/docs.git`, then copy the folder of the example you want. Two kinds of example are copied over another one. For the full monitoring stack, copy `examples/monitoring/minimal`, then add the files from `examples/monitoring/full`, as [its guide](docs/monitoring.md#the-full-stack-adds-dashboards-and-metrics) explains. For a proxy login, copy the proxy's folder, then the files from its folder under `examples/reverse-proxy/login`, as [Adding a login on a reverse proxy](docs/proxy-login.md) explains.
+Run `git clone https://github.com/cplieger/docs.git`, then copy the folder of the example you want. Two kinds of example are copied over another one. For the full monitoring stack, copy `examples/monitoring/stack`, then add the files from `examples/monitoring/grafana`, as [its guide](docs/monitoring.md#the-full-stack-adds-dashboards-and-metrics) explains. For a proxy login, copy the proxy's folder, then the files from its folder under `examples/reverse-proxy/login`, as [Adding a login on a reverse proxy](docs/proxy-login.md) explains.
 
 Change `app.example.com` to your own name, `you@example.com` to your own address, and every password and token to your own.
 

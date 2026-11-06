@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boots examples/monitoring/full on top of the smallest stack's folders, the way
+# Boots examples/monitoring/grafana on top of the smallest stack's folders, the way
 # the guide tells a reader to, then plex-exporter from its own folder as a second
 # compose project, and checks that every part is connected.
 set -euo pipefail
@@ -8,7 +8,7 @@ source "$(dirname "$0")/../lib.sh"
 
 GRAFANA_PASSWORD="docs-test-password"
 
-use_example monitoring-full examples/monitoring/minimal examples/monitoring/full
+use_example monitoring-grafana examples/monitoring/stack examples/monitoring/grafana
 add_project monitoring-app examples/monitoring/plex-exporter
 
 printf 'http://alert-receiver.invalid/\n' >"$WORK/alertmanager/webhook_url"
