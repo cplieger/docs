@@ -1,5 +1,5 @@
-# Notifications only. Alloy reads the logs of every container on this host,
-# Loki stores them and checks the alert rules, and Alertmanager sends the alerts.
+# Alerts from metrics and logs. Alloy reads each app's metrics page and every container's log.
+# Prometheus and Loki check the alert rules, and Alertmanager sends the alerts.
 # See docs/monitoring.md for every step.
 services:
   loki:
@@ -9,7 +9,7 @@ services:
     command: "-config.file=/etc/loki/config.yaml"
     volumes:
       - "./loki/config.yaml:/etc/loki/config.yaml:ro"
-      - "./loki/rules:/etc/loki/rules:ro"  # put alert rule files in loki/rules/fake
+      - "./loki/rules:/etc/loki/rules:ro"  # put log alert rule files in loki/rules/fake
       - "loki-data:/loki"
     ports:
       - "127.0.0.1:3100:3100"  # Loki has no login, so only this host can reach it
@@ -35,7 +35,28 @@ services:
       - "alloy-data:/var/lib/alloy/data"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"  # lets Alloy find containers and read their logs
 
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"  # how long Prometheus keeps metrics, raise it for a longer history
+      - "--web.enable-remote-write-receiver"  # lets Alloy send metrics in
+    volumes:
+      - "./prometheus:/etc/prometheus:ro"
+      - "prometheus-data:/prometheus"
+    ports:
+      - "127.0.0.1:9090:9090"  # Prometheus has no login, so only this host can reach it
+
+# A fixed name, so an app's own compose file can join this network and Alloy can read its metrics.
+networks:
+  default:
+    name: monitoring
+
 volumes:
   loki-data:
   alertmanager-data:
   alloy-data:
+  prometheus-data:

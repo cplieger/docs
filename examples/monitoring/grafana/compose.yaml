@@ -1,5 +1,5 @@
-# Notifications, metrics and dashboards. This is the smallest stack plus Prometheus and Grafana.
-# Run it in the same folder, with the loki and alertmanager folders from the smallest stack.
+# The starting stack plus Grafana, for dashboards.
+# Copy it over the starting stack's folder. It replaces compose.yaml and adds the grafana folder.
 # See docs/monitoring.md for every step.
 services:
   loki:

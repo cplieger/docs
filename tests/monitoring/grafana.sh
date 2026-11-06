@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boots examples/monitoring/grafana on top of the smallest stack's folders, the way
+# Boots examples/monitoring/grafana on top of the starting stack's folder, the way
 # the guide tells a reader to, then plex-exporter from its own folder as a second
 # compose project, and checks that every part is connected.
 set -euo pipefail

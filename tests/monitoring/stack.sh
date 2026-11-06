@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Boots examples/monitoring/stack and proves two alerts travel from a real
-# container log line through Alloy, Loki's ruler and Alertmanager to a webhook.
+# Boots examples/monitoring/stack, checks that Prometheus starts with the
+# retention the guide names, and proves two alerts travel from a real container
+# log line through Alloy, Loki's ruler and Alertmanager to a webhook.
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
@@ -18,6 +19,10 @@ sudo chown 65534:65534 "$WORK/alertmanager/webhook_url"
 compose up --detach --quiet-pull
 wait_for 120 "Loki is ready" http_ok http://127.0.0.1:3100/ready
 wait_for 60 "Alertmanager is ready" http_ok http://127.0.0.1:9093/-/ready
+wait_for 60 "Prometheus is ready" http_ok http://127.0.0.1:9090/-/ready
+retention="$(curl -fsS http://127.0.0.1:9090/api/v1/status/flags | jq -r '.data["storage.tsdb.retention.time"]')"
+[ "$retention" = 15d ] || die "Prometheus keeps metrics for $retention, want the 15d compose.yaml sets"
+pass "Prometheus keeps metrics for the 15d compose.yaml sets"
 curl -fsS http://127.0.0.1:3100/config | grep -A1 '^analytics:' | grep -q 'reporting_enabled: false' \
   || die "Loki still sends usage statistics"
 pass "Loki sends no usage statistics"

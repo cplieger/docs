@@ -27,3 +27,18 @@ loki.write "local" {
 		url = "http://loki:3100/loki/api/v1/push"
 	}
 }
+
+// Read the metrics of each app that has a metrics port. Add one block per app.
+// The job name is the one its shipped alert rules expect.
+// Alloy finds the app by its container name on the monitoring network, so the app must join that network.
+prometheus.scrape "plex_exporter" {
+	job_name   = "plex-exporter"
+	targets    = [{"__address__" = "plex-exporter:9594"}]
+	forward_to = [prometheus.remote_write.local.receiver]
+}
+
+prometheus.remote_write "local" {
+	endpoint {
+		url = "http://prometheus:9090/api/v1/write"
+	}
+}

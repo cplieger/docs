@@ -28,7 +28,7 @@ PAGES = ("README.md", "CONTRIBUTING.md", "docs/*.md")
 # Files under examples/ that exist for the examples to work but are never shown.
 NOT_SHOWN = frozenset(
     {
-        "examples/monitoring/grafana/prometheus/rules/.gitkeep",
+        "examples/monitoring/stack/prometheus/rules/.gitkeep",
         "examples/monitoring/grafana/grafana/dashboards/.gitkeep",
     }
 )
