@@ -1,0 +1,24 @@
+# Sends each of one app's per-item alerts once, then again only once a week while it fires.
+# Every other alert goes out as in the starting stack. Save it as alertmanager/alertmanager.yml.
+# Put the alert names and the item label from the app's monitoring page in the child route.
+route:
+  receiver: notify
+  group_by: [alertname, container, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - 'alertname=~"ExampleAppItemFound|ExampleAppItemBroken"'
+      receiver: notify-once
+      group_by: [alertname, container, job, item]  # one message per item: "item" is the label that names it
+      repeat_interval: 168h  # keep it shorter than --data.retention in compose.yaml, or it repeats sooner
+
+receivers:
+  - name: notify
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+  - name: notify-once
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+        send_resolved: false  # no second message when an item's alert stops firing

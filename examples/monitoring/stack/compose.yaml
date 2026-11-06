@@ -18,6 +18,11 @@ services:
     image: prom/alertmanager:v0.35.0
     container_name: alertmanager
     restart: unless-stopped
+    command:
+      # The image's own two arguments, which a command here replaces, then the retention.
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--data.retention=720h"  # remembers what it sent for 30 days, so a repeat_interval up to that holds
     volumes:
       # Before the first start, create the secret file your alertmanager.yml names,
       # such as alertmanager/webhook_url. docs/monitoring.md shows how.

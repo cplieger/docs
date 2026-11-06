@@ -45,6 +45,11 @@ services:
     image: prom/alertmanager:v0.35.0
     container_name: alertmanager
     restart: unless-stopped
+    command:
+      # The image's own two arguments, which a command here replaces, then the retention.
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--data.retention=720h"  # remembers what it sent for 30 days, so a repeat_interval up to that holds
     volumes:
       # Before the first start, create the secret file your alertmanager.yml names,
       # such as alertmanager/webhook_url. docs/monitoring.md shows how.
@@ -478,6 +483,49 @@ receivers:
 
 After you change the file, run `docker compose restart alertmanager`. Alertmanager supports more receivers, such as Slack, Telegram and Pushover. The [Alertmanager configuration reference](https://prometheus.io/docs/alerting/latest/configuration/#receiver-integration-settings) lists them all.
 
+### Routing one app's alerts
+
+Some apps raise one alert per item, such as one per release they find, and an item can stay an alert for days. The starting stack's route would put those items in one message and remind you every four hours. A child route sends them on their own terms instead. `receivers/one-app.yml` is a complete replacement for `alertmanager/alertmanager.yml` that does this for one app and sends every other alert as before:
+
+<!-- include: examples/monitoring/receivers/one-app.yml -->
+
+```yaml
+# Sends each of one app's per-item alerts once, then again only once a week while it fires.
+# Every other alert goes out as in the starting stack. Save it as alertmanager/alertmanager.yml.
+# Put the alert names and the item label from the app's monitoring page in the child route.
+route:
+  receiver: notify
+  group_by: [alertname, container, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - 'alertname=~"ExampleAppItemFound|ExampleAppItemBroken"'
+      receiver: notify-once
+      group_by: [alertname, container, job, item]  # one message per item: "item" is the label that names it
+      repeat_interval: 168h  # keep it shorter than --data.retention in compose.yaml, or it repeats sooner
+
+receivers:
+  - name: notify
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+  - name: notify-once
+    webhook_configs:
+      - url_file: /etc/alertmanager/webhook_url
+        send_resolved: false  # no second message when an item's alert stops firing
+```
+
+<!-- /include -->
+
+- `matchers` picks the app's alerts by `alertname`. The app's monitoring page lists its alert names and the label that names each item. Put that label in place of `item` in `group_by`, so each item gets its own message.
+- `repeat_interval: 168h` reminds you once a week while an item's alert fires. Alertmanager remembers what it sent only for as long as `--data.retention` says, 120 hours unless you set it, and sends a notification again once it forgets, even before `repeat_interval` has passed ([configuration reference](https://prometheus.io/docs/alerting/latest/configuration/#route)). The starting stack's `compose.yaml` sets it to 720 hours and keeps that memory on the `alertmanager-data` volume across restarts. A `command:` in Compose replaces the image's own arguments, which is why that list repeats `--config.file` and `--storage.path`.
+- `send_resolved: false` sends no second message when an item's alert stops firing.
+
+Many new items at once send one message each. Discord limits how fast a webhook can post, and every Alertmanager release up to v0.34.2 drops a message that Discord refuses with status `429` instead of sending it again. The fix, [prometheus/alertmanager#5496](https://github.com/prometheus/alertmanager/pull/5496), is merged but was in no release in November 2026.
+
+To check where an alert would go, run `docker compose exec alertmanager amtool config routes test --config.file=/etc/alertmanager/alertmanager.yml alertname=ExampleAppItemFound`, which prints the receiver's name. To send a test alert through the route, run `docker compose exec alertmanager amtool alert add alertname=ExampleAppItemFound item=test --alertmanager.url=http://localhost:9093`.
+
 ## Reaching an app's metrics page
 
 Alloy reads an app's metrics page by the app's container name. Compose gives each compose file its own network, so Alloy cannot reach an app in another folder until the app joins the stack's network. The starting stack names its network `monitoring` for that. Logs need no network, because Alloy reads them through the Docker socket.
@@ -702,6 +750,11 @@ services:
     image: prom/alertmanager:v0.35.0
     container_name: alertmanager
     restart: unless-stopped
+    command:
+      # The image's own two arguments, which a command here replaces, then the retention.
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+      - "--data.retention=720h"  # remembers what it sent for 30 days, so a repeat_interval up to that holds
     volumes:
       # Before the first start, create the secret file your alertmanager.yml names,
       # such as alertmanager/webhook_url. docs/monitoring.md shows how.
