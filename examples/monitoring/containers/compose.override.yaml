@@ -3,7 +3,10 @@
 # See docs/monitoring.md, "Container rules".
 services:
   alloy:
-    privileged: true  # cAdvisor reads every container's resource use and the kernel's log of out-of-memory kills
+    privileged: true  # cAdvisor reads every container's resource use
+    # Alloy labels the kernel's out-of-memory count with its hostname. A fixed name
+    # keeps one series for that count when Docker creates a new Alloy container.
+    hostname: alloy
     # The image's own arguments, with the alloy folder in place of one file,
     # so Alloy loads containers.alloy beside config.alloy.
     command: ["run", "/etc/alloy", "--storage.path=/var/lib/alloy/data"]

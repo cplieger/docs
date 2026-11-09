@@ -1,5 +1,6 @@
-# Alerts for every container on the host, from the container metrics cAdvisor reports.
-# They need the cAdvisor block in alloy/containers.alloy.
+# Alerts for every container on the host. ContainerRestarting reads the container metrics cAdvisor reports.
+# KernelOutOfMemoryKill reads the kernel's count of out-of-memory kills on the host.
+# They need the blocks in alloy/containers.alloy.
 # docs/monitoring.md, "Container rules", says what each rule can miss.
 groups:
   - name: containers
@@ -16,15 +17,13 @@ groups:
         annotations:
           summary: "{{ $labels.container }} keeps restarting"
           description: "The container {{ $labels.container }} started again at least {{ $value }} times in the last 15 minutes. Read its log to see why it stops."
-      - alert: ContainerOutOfMemory
-        expr: |
-          label_replace(
-            increase(container_oom_events_total{name!=""}[10m]) > 0,
-            "container", "$1", "name", "(.+)"
-          )
+      # The kernel's count includes every kill on the host, so this alert cannot name the container.
+      # Alloy reads the count once a minute, so 5 minutes holds 5 readings.
+      - alert: KernelOutOfMemoryKill
+        expr: increase(node_vmstat_oom_kill[5m]) > 0
         for: 0m
         labels:
           severity: warning
         annotations:
-          summary: "A process in {{ $labels.container }} ran out of memory"
-          description: "The kernel stopped a process in the container {{ $labels.container }} because the container reached its memory limit or the host ran out of memory."
+          summary: "The kernel stopped a process that ran out of memory"
+          description: "In the last 5 minutes, the kernel stopped a process that ran out of memory. The process reached a memory limit, such as its container's, or the host ran out of memory. To find the process, run sudo dmesg -T | grep oom-kill: on the host. For a process in a container, the task_memcg part of its line holds the container ID."

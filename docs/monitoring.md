@@ -665,9 +665,9 @@ If you run no metric store, an uptime prober can make the same check. Point it a
 
 ## Container rules
 
-A restart loop or an out-of-memory kill looks the same in every container, so no app ships a rule for it. These two rules cover every container on the host, from the container metrics that Alloy's [cAdvisor component](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.cadvisor/) reports. cAdvisor needs a privileged Alloy container, which can reach everything on the host, so the starting stack leaves it out.
+A restart loop or an out-of-memory kill looks the same in every container, so no app ships a rule for it. These two rules cover every container on the host. `ContainerRestarting` reads the container metrics that Alloy's [cAdvisor component](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.cadvisor/) reports. `KernelOutOfMemoryKill` reads the kernel's count of out-of-memory kills, which Alloy's [unix component](https://grafana.com/docs/alloy/latest/reference/components/prometheus/prometheus.exporter.unix/) reports. cAdvisor needs a privileged Alloy container, which can reach everything on the host, so the starting stack leaves it out.
 
-To add it, run `cp -r docs/examples/monitoring/containers/. monitoring/` from the folder you cloned this repository into. That adds the three files below and replaces none. Then run `docker compose up -d` and `docker compose restart prometheus` in the `monitoring` folder, so Alloy starts with cAdvisor and Prometheus reads the new rule file.
+To add it, run `cp -r docs/examples/monitoring/containers/. monitoring/` from the folder you cloned this repository into. That adds the three files below and replaces none. Then run `docker compose up -d` and `docker compose restart prometheus` in the `monitoring` folder, so Alloy loads `containers.alloy` and Prometheus reads the new rule file.
 
 `compose.override.yaml`, which Docker Compose reads on its own beside `compose.yaml`:
 
@@ -679,7 +679,10 @@ To add it, run `cp -r docs/examples/monitoring/containers/. monitoring/` from th
 # See docs/monitoring.md, "Container rules".
 services:
   alloy:
-    privileged: true  # cAdvisor reads every container's resource use and the kernel's log of out-of-memory kills
+    privileged: true  # cAdvisor reads every container's resource use
+    # Alloy labels the kernel's out-of-memory count with its hostname. A fixed name
+    # keeps one series for that count when Docker creates a new Alloy container.
+    hostname: alloy
     # The image's own arguments, with the alloy folder in place of one file,
     # so Alloy loads containers.alloy beside config.alloy.
     command: ["run", "/etc/alloy", "--storage.path=/var/lib/alloy/data"]
@@ -700,7 +703,7 @@ services:
 <!-- include: examples/monitoring/containers/alloy/containers.alloy -->
 
 ```alloy
-// Read every container's CPU, memory, restarts and out-of-memory kills, and send them to Prometheus.
+// Read every container's CPU, memory and restarts, and the host's count of out-of-memory kills, and send them to Prometheus.
 // Alloy loads this file beside config.alloy, as compose.override.yaml sets up.
 prometheus.exporter.cadvisor "containers" {
 	docker_only = true
@@ -714,6 +717,19 @@ prometheus.scrape "containers" {
 	targets    = prometheus.exporter.cadvisor.containers.targets
 	forward_to = [prometheus.remote_write.local.receiver]
 }
+
+// Read the kernel's count of out-of-memory kills on this host, for the KernelOutOfMemoryKill rule.
+// cAdvisor's own count of these kills stays at 0 in Alloy v1.20 and later, as grafana/alloy issue 7361 reports.
+prometheus.exporter.unix "host" {
+	// The vmstat collector holds that count. The container rules use no other host metric.
+	set_collectors = ["vmstat"]
+}
+
+prometheus.scrape "host" {
+	targets         = prometheus.exporter.unix.host.targets
+	scrape_interval = "60s"
+	forward_to      = [prometheus.remote_write.local.receiver]
+}
 ```
 
 <!-- /include -->
@@ -723,8 +739,9 @@ prometheus.scrape "containers" {
 <!-- include: examples/monitoring/containers/prometheus/rules/containers.yaml -->
 
 ```yaml
-# Alerts for every container on the host, from the container metrics cAdvisor reports.
-# They need the cAdvisor block in alloy/containers.alloy.
+# Alerts for every container on the host. ContainerRestarting reads the container metrics cAdvisor reports.
+# KernelOutOfMemoryKill reads the kernel's count of out-of-memory kills on the host.
+# They need the blocks in alloy/containers.alloy.
 # docs/monitoring.md, "Container rules", says what each rule can miss.
 groups:
   - name: containers
@@ -741,26 +758,28 @@ groups:
         annotations:
           summary: "{{ $labels.container }} keeps restarting"
           description: "The container {{ $labels.container }} started again at least {{ $value }} times in the last 15 minutes. Read its log to see why it stops."
-      - alert: ContainerOutOfMemory
-        expr: |
-          label_replace(
-            increase(container_oom_events_total{name!=""}[10m]) > 0,
-            "container", "$1", "name", "(.+)"
-          )
+      # The kernel's count includes every kill on the host, so this alert cannot name the container.
+      # Alloy reads the count once a minute, so 5 minutes holds 5 readings.
+      - alert: KernelOutOfMemoryKill
+        expr: increase(node_vmstat_oom_kill[5m]) > 0
         for: 0m
         labels:
           severity: warning
         annotations:
-          summary: "A process in {{ $labels.container }} ran out of memory"
-          description: "The kernel stopped a process in the container {{ $labels.container }} because the container reached its memory limit or the host ran out of memory."
+          summary: "The kernel stopped a process that ran out of memory"
+          description: "In the last 5 minutes, the kernel stopped a process that ran out of memory. The process reached a memory limit, such as its container's, or the host ran out of memory. To find the process, run sudo dmesg -T | grep oom-kill: on the host. For a process in a container, the task_memcg part of its line holds the container ID."
 ```
 
 <!-- /include -->
 
-Each rule names the container in its `container` label, as the log rules do. Both can miss a fault:
+`ContainerRestarting` names the container in its `container` label, as the log rules do. `KernelOutOfMemoryKill` cannot name the container. Each rule can miss a fault:
 
 - `ContainerRestarting` counts the starts cAdvisor sees. A container that stops within a second of each start is rarely running when Alloy reads the metrics, so the rule can miss it. That app's own down alert or health probe tells you instead.
-- `ContainerOutOfMemory` counts the kills cAdvisor finds in the kernel's log. If cAdvisor cannot read that log, it stops counting and writes only a line in Alloy's log. It also misses some kills, such as one that stops the container itself. So a quiet count does not mean that no process ran out of memory. When a kill stops a container and Docker starts it again, `ContainerRestarting` is the rule that tells you. To check one container by hand, read the `oom_kill` count in the `memory.events` file of its folder under `/sys/fs/cgroup`.
+- `KernelOutOfMemoryKill` fires for every process the kernel stops for running out of memory on the host, in any container or outside one. That includes a kill that stops the container itself. The rule reads the kernel's count for the whole host, so the alert cannot say which container the process ran in. The rule compares readings up to 5 minutes apart, so it can miss a kill while Alloy is stopped for longer than that.
+
+To find the container, run `sudo dmesg -T | grep oom-kill:` on the host. Each line names the process the kernel stopped. For a process in a container, its `task_memcg` part is `/docker/<id>` or `/system.slice/docker-<id>.scope`, depending on [Docker's cgroup driver](https://docs.docker.com/reference/cli/dockerd/#configure-cgroup-driver). `docker ps -a --no-trunc` lists every container with its full ID. To check one container by hand, read the `oom_kill` count in the `memory.events` file of its folder under `/sys/fs/cgroup`.
+
+cAdvisor has its own count of these kills for each container, but it stays at 0 in Alloy v1.20 and later, as [grafana/alloy#7361](https://github.com/grafana/alloy/issues/7361) reports. A rule that names the container waits on the fix in [grafana/alloy#7419](https://github.com/grafana/alloy/pull/7419).
 
 Do not write a log rule that looks for "out of memory" in every container's log instead. Apps write text from outside into their logs, such as issue titles, show names and release titles, so such a rule fires on a release that has those words in its title.
 
