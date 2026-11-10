@@ -11,14 +11,14 @@ services:
 
   # Runs for 20 seconds, exits and starts again, so ContainerRestarting fires for it.
   crash-loop:
-    image: busybox:1.37.0
+    image: busybox:1.38.0
     container_name: crash-loop
     command: ["sh", "-c", "sleep 20; exit 1"]
     restart: always
 
   # A child process fills the memory limit and the kernel stops it; the container itself stays up.
   oom-worker:
-    image: busybox:1.37.0
+    image: busybox:1.38.0
     container_name: oom-worker
     mem_limit: 32m
     memswap_limit: 32m
