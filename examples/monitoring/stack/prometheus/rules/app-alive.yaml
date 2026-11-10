@@ -1,0 +1,14 @@
+# Alerts when an app's health page stops answering 200, from Alloy's blackbox probe.
+# alloy/config.alloy probes each app once a minute, so this fires on the third failed probe.
+# Each app's monitoring page says what its health page checks.
+groups:
+  - name: app-alive
+    rules:
+      - alert: AppHealthCheckFailing
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.container }} fails its health check"
+          description: "The health page of {{ $labels.container }} answered no 200 to three probes in a row. The app is down, still starting, or reports a fault."

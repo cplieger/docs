@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Boots examples/monitoring/minimal and proves two alerts travel from a real
-# container log line through Alloy, Loki's ruler and Alertmanager to a webhook.
+# Boots examples/monitoring/stack, checks its metric rules with promtool and that
+# Prometheus starts with the retention the guide names, and proves alerts reach a
+# webhook through Alertmanager: two from real container log lines through Alloy
+# and Loki's ruler, the metric test alert, and the health probe's alert.
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
 
-use_example monitoring-minimal examples/monitoring/minimal
-add_override tests/monitoring/minimal.compose.yaml
+use_example monitoring-stack examples/monitoring/stack
+add_override tests/monitoring/stack.compose.yaml
 
 printf 'http://sink:8080/\n' >"$WORK/alertmanager/webhook_url"
 # The guide's step 2, as written.
@@ -15,9 +17,29 @@ sudo chown 65534:65534 "$WORK/alertmanager/webhook_url"
 # The rules a reader gets by default, for the image a reader runs by default.
 (cd "$WORK" && bash fetch.sh knell logql)
 
+# The compose file's own Prometheus, so one Renovate bump moves both.
+prometheus_image="$(awk '$1 == "image:" && $2 ~ /^prom\/prometheus:/ { print $2; exit }' "$WORK/compose.yaml")"
+[ -n "$prometheus_image" ] || die "compose.yaml names no prom/prometheus image"
+rule_files=(../alert-test.yaml)
+for f in "$DOCS_ROOT"/examples/monitoring/stack/prometheus/rules/*.yaml; do
+  rule_files+=("$(basename "$f")")
+done
+docker run --rm --entrypoint promtool --volume "$DOCS_ROOT/examples/monitoring:/m:ro" --workdir /m/stack/prometheus/rules \
+  "$prometheus_image" check rules "${rule_files[@]}"
+pass "promtool accepts the stack's metric rules"
+for fixture in "$DOCS_ROOT"/examples/monitoring/rule-tests/*_test.yaml; do
+  docker run --rm --entrypoint promtool --volume "$DOCS_ROOT/examples/monitoring:/m:ro" --workdir /m/rule-tests \
+    "$prometheus_image" test rules "$(basename "$fixture")"
+  pass "promtool test rules passes $(basename "$fixture")"
+done
+
 compose up --detach --quiet-pull
 wait_for 120 "Loki is ready" http_ok http://127.0.0.1:3100/ready
 wait_for 60 "Alertmanager is ready" http_ok http://127.0.0.1:9093/-/ready
+wait_for 60 "Prometheus is ready" http_ok http://127.0.0.1:9090/-/ready
+retention="$(curl -fsS http://127.0.0.1:9090/api/v1/status/flags | jq -r '.data["storage.tsdb.retention.time"]')"
+[ "$retention" = 15d ] || die "Prometheus keeps metrics for $retention, want the 15d compose.yaml sets"
+pass "Prometheus keeps metrics for the 15d compose.yaml sets"
 curl -fsS http://127.0.0.1:3100/config | grep -A1 '^analytics:' | grep -q 'reporting_enabled: false' \
   || die "Loki still sends usage statistics"
 pass "Loki sends no usage statistics"
@@ -37,12 +59,8 @@ if docker container inspect alert-test >/dev/null 2>&1; then
   die "a container named alert-test already exists. This test leaves it alone, so remove it yourself first"
 fi
 (cd "$WORK" && bash test-alert.sh)
-# Only a successful `docker run --name` gets here, so this ID is the container the test started.
-ALERT_TEST_ID="$(docker container inspect --format '{{.Id}}' alert-test)"
-remove_alert_test() {
-  docker rm --force "$ALERT_TEST_ID" >/dev/null 2>&1
-}
-CLEANUP_FUNCS+=(remove_alert_test)
+! docker container inspect alert-test >/dev/null 2>&1 || die "test-alert.sh left its alert-test container running"
+pass "test-alert.sh's alert-test container is gone"
 
 # sink_has ALERTNAME CONTAINER: the webhook received that alert, firing, with that container label.
 sink_has() {
@@ -51,6 +69,11 @@ sink_has() {
     >/dev/null
 }
 wait_for 360 "the webhook received AlertTest" sink_has AlertTest alert-test
+wait_for 60 "the webhook received MetricAlertTest" sink_has MetricAlertTest alert-test
+[ ! -e "$WORK/prometheus/rules/alert-test.yaml" ] || die "test-alert.sh left its metric test rule in prometheus/rules"
+pass "test-alert.sh removed its metric test rule"
+# No plex-exporter runs here, so the stack's health probe of it fails.
+wait_for 420 "the webhook received AppHealthCheckFailing for plex-exporter" sink_has AppHealthCheckFailing plex-exporter
 wait_for 360 "the webhook received knell's shipped KnellExitedWithError" sink_has KnellExitedWithError knell
 
 active=$(curl -fsS 'http://127.0.0.1:9093/api/v2/alerts?filter=alertname%3D%22AlertTest%22' | jq length)

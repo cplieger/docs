@@ -1,6 +1,6 @@
-# plex-exporter in its own folder, an app with metrics and a dashboard to try the full stack with.
-# It joins the monitoring network that the full stack creates, so Alloy can read its metrics.
-# Start the full stack first. See docs/monitoring.md.
+# plex-exporter in its own folder, an app with metrics and a dashboard to try the stack with.
+# It joins the monitoring network that the starting stack creates, so Alloy can read its metrics.
+# Run the starting stack first. See docs/monitoring.md.
 services:
   plex-exporter:
     image: ghcr.io/cplieger/plex-exporter:latest
@@ -16,4 +16,4 @@ services:
 
 networks:
   monitoring:
-    external: true  # created by the full stack's compose.yaml
+    external: true  # created by the starting stack's compose.yaml

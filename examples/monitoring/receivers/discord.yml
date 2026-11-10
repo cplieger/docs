@@ -2,7 +2,7 @@
 # Put the channel's webhook address in alertmanager/discord_webhook_url, on one line.
 route:
   receiver: discord
-  group_by: [alertname, container]
+  group_by: [alertname, container, job]  # job keeps two apps' metric alerts of one name apart
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h

@@ -126,6 +126,8 @@ Pick limits from what the container really uses. Run `docker stats` for a few da
 
 Every cplieger image has a healthcheck built in, so you need to add nothing. `docker compose ps` shows `healthy` or `unhealthy` for each container. To make one service wait until another is ready, use `depends_on:` with `condition: service_healthy`.
 
+Docker's health status notifies nobody on its own, and Docker does not restart an unhealthy container. [Knowing that an app is alive](monitoring.md#knowing-that-an-app-is-alive) shows how to be told.
+
 If an app needs longer to start on your data, change only the timing, such as `healthcheck:` with `start_period: 5m`. A `healthcheck:` block with no `test:` keeps the image's own check and changes only the timing.
 
 ## Ports
@@ -135,6 +137,8 @@ A published port is reachable from every network your host is on, unless you say
 - `"127.0.0.1:9190:9190"` publishes the port to the host itself only. Use it for a page you open on the host, or for a reverse proxy that runs directly on the host.
 - Leave out `ports:` for an app that only a reverse proxy in the same compose file reaches. Containers on one compose network reach each other by service name with no published port. [Running an app behind a reverse proxy](reverse-proxy.md) shows this.
 - `"9190:9190"` publishes the port on every address of the host. Use it only for a service other devices must reach directly, and keep it on a network you trust.
+
+An app's `/metrics` page answers without a login. Let your scraper reach it on the `monitoring` network, as [Reaching an app's metrics page](monitoring.md#reaching-an-apps-metrics-page) shows, rather than through a published port.
 
 ## The Docker socket
 

@@ -25,11 +25,12 @@ ROOT = Path(__file__).resolve().parent.parent
 # Pages that may carry include markers.
 PAGES = ("README.md", "CONTRIBUTING.md", "docs/*.md")
 
-# Files under examples/ that exist for the examples to work but are never shown.
+# Files under examples/ that no page shows: folder placeholders and rule tests.
 NOT_SHOWN = frozenset(
     {
-        "examples/monitoring/full/prometheus/rules/.gitkeep",
-        "examples/monitoring/full/grafana/dashboards/.gitkeep",
+        "examples/monitoring/rule-tests/app-alive_test.yaml",
+        "examples/monitoring/rule-tests/containers_test.yaml",
+        "examples/monitoring/grafana/grafana/dashboards/.gitkeep",
     }
 )
 

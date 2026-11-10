@@ -1,0 +1,87 @@
+# Checks containers/prometheus/rules/containers.yaml with promtool test rules.
+rule_files:
+  - ../containers/prometheus/rules/containers.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      # Starts again every two minutes.
+      - series: 'container_start_time_seconds{job="integrations/cadvisor", name="crash-loop"}'
+        values: "0 0 120 120 240 240 360 360"
+      # Started once and stays up.
+      - series: 'container_start_time_seconds{job="integrations/cadvisor", name="steady"}'
+        values: "0 0 0 0 0 0 0 0"
+      # The kernel stops one process at minute 3.
+      - series: 'node_vmstat_oom_kill{job="integrations/unix", instance="kill"}'
+        values: "0 0 0 1 1 1 1 1 1 1 1"
+      # No kill.
+      - series: 'node_vmstat_oom_kill{job="integrations/unix", instance="steady"}'
+        values: "0 0 0 0 0 0 0 0 0 0 0"
+      # The host restarts at minute 3 and its count starts again at 0.
+      - series: 'node_vmstat_oom_kill{job="integrations/unix", instance="reboot"}'
+        values: "4 4 4 0 0 0 0 0 0 0 0"
+      # Alloy starts for the first time at minute 4 and reads the count the host already had.
+      - series: 'node_vmstat_oom_kill{job="integrations/unix", instance="new-alloy"}'
+        values: "_ _ _ _ 7 7 7 7 7 7 7"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ContainerRestarting
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: ContainerRestarting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: integrations/cadvisor
+              name: crash-loop
+              container: crash-loop
+            exp_annotations:
+              summary: "crash-loop keeps restarting"
+              description: "The container crash-loop started again at least 3 times in the last 15 minutes. Read its log to see why it stops."
+      - eval_time: 2m
+        alertname: KernelOutOfMemoryKill
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: KernelOutOfMemoryKill
+        exp_alerts: &kill
+          - exp_labels:
+              severity: warning
+              job: integrations/unix
+              instance: kill
+            exp_annotations: &kill_text
+              summary: "The kernel stopped a process that ran out of memory"
+              description: "In the last 5 minutes, the kernel stopped a process that ran out of memory. The process reached a memory limit, such as its container's, or the host ran out of memory. To find the process, run sudo dmesg -T | grep oom-kill: on the host. For a process in a container, the task_memcg part of its line holds the container ID."
+      - eval_time: 6m
+        alertname: KernelOutOfMemoryKill
+        exp_alerts: *kill
+      - eval_time: 8m
+        alertname: KernelOutOfMemoryKill
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      # Docker creates a new Alloy container at minute 3, and the kernel stops a process before Alloy reads the count again.
+      - series: 'node_vmstat_oom_kill{job="integrations/unix", instance="recreate"}'
+        values: "7 7 7 _ 8 8 8 8"
+      # The host restarts at minute 3 and the kernel stops a process at minute 4.
+      - series: 'node_vmstat_oom_kill{job="integrations/unix", instance="reboot-kill"}'
+        values: "4 4 4 0 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: KernelOutOfMemoryKill
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: KernelOutOfMemoryKill
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: integrations/unix
+              instance: recreate
+            exp_annotations: *kill_text
+          - exp_labels:
+              severity: warning
+              job: integrations/unix
+              instance: reboot-kill
+            exp_annotations: *kill_text

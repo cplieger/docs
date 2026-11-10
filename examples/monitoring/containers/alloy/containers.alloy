@@ -1,0 +1,27 @@
+// Read every container's CPU, memory and restarts, and the host's count of out-of-memory kills, and send them to Prometheus.
+// Alloy loads this file beside config.alloy, as compose.override.yaml sets up.
+prometheus.exporter.cadvisor "containers" {
+	docker_only = true
+
+	// Left on, cAdvisor copies every container's Docker labels onto its series,
+	// and a label can hold a setting such as a proxy's login hash.
+	store_container_labels = false
+}
+
+prometheus.scrape "containers" {
+	targets    = prometheus.exporter.cadvisor.containers.targets
+	forward_to = [prometheus.remote_write.local.receiver]
+}
+
+// Read the kernel's count of out-of-memory kills on this host, for the KernelOutOfMemoryKill rule.
+// cAdvisor's own count of these kills stays at 0 in Alloy v1.20 and later, as grafana/alloy issue 7361 reports.
+prometheus.exporter.unix "host" {
+	// The vmstat collector holds that count. The container rules use no other host metric.
+	set_collectors = ["vmstat"]
+}
+
+prometheus.scrape "host" {
+	targets         = prometheus.exporter.unix.host.targets
+	scrape_interval = "60s"
+	forward_to      = [prometheus.remote_write.local.receiver]
+}

@@ -1,0 +1,17 @@
+# A test alert for the metric rules. test-alert.sh copies this file into prometheus/rules,
+# where the rule fires at once, and removes it again three minutes later.
+groups:
+  - name: metric-alert-test
+    rules:
+      - alert: MetricAlertTest
+        expr: vector(1)
+        for: 0m
+        labels:
+          severity: info
+          container: alert-test
+        annotations:
+          summary: "Test alert from Prometheus"
+          description: >
+            Prometheus checked its test rule and fired it.
+            If you got this message, metric alerts reach you.
+            It stops firing when test-alert.sh removes the rule.

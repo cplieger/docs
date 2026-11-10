@@ -5,14 +5,27 @@ set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
 
-IMAGE="prom/alertmanager:v0.34.1"
+# The stack's own Alertmanager, so one Renovate bump moves both.
+IMAGE="$(awk '$1 == "image:" && $2 ~ /^prom\/alertmanager:/ { print $2; exit }' "$DOCS_ROOT/examples/monitoring/stack/compose.yaml")"
+[ -n "$IMAGE" ] || die "examples/monitoring/stack/compose.yaml names no prom/alertmanager image"
 
-for file in minimal/alertmanager/alertmanager.yml receivers/discord.yml receivers/email.yml; do
+for file in stack/alertmanager/alertmanager.yml receivers/discord.yml receivers/email.yml receivers/one-app.yml; do
   docker run --rm --entrypoint amtool \
     --volume "$DOCS_ROOT/examples/monitoring/$(dirname "$file"):/cfg:ro" \
     "$IMAGE" check-config "/cfg/$(basename "$file")"
   pass "amtool accepts $file"
 done
+
+# route_of LABEL=VALUE...: the receiver one-app.yml picks for an alert with those labels.
+route_of() {
+  docker run --rm --entrypoint amtool --volume "$DOCS_ROOT/examples/monitoring/receivers:/cfg:ro" \
+    "$IMAGE" config routes test --config.file=/cfg/one-app.yml "$@"
+}
+[ "$(route_of alertname=ExampleAppItemFound item=first)" = notify-once ] \
+  || die "one-app.yml does not send the app's item alerts to notify-once"
+[ "$(route_of alertname=KnellDown job=knell)" = notify ] \
+  || die "one-app.yml does not send other alerts to notify"
+pass "one-app.yml routes the app's item alerts apart from the others"
 
 PROJECT="monitoring-receivers"
 WORK="$(mktemp -d)"
