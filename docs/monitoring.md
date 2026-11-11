@@ -646,7 +646,7 @@ These apps serve a health page, at these addresses for the container names of th
 
 | App | Health address | Before you probe it |
 | --- | --- | --- |
-| grelot | `http://grelot:8080/healthz` | |
+| grelot | `http://grelot:9737/healthz` | |
 | knell | `http://knell:9190/healthz` | Add `knell` to `ALLOWED_HOSTS` if you set it |
 | marotte | `http://marotte:9847/api/health` | Add `marotte` to `ALLOWED_HOSTS` if you set it |
 | pg-autodump | `http://pg-autodump:9847/healthz` | |
