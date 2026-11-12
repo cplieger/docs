@@ -317,7 +317,7 @@ Nginx Proxy Manager keeps the password in plain text in its database in the `dat
 # web-terminal-kiro behind Nginx Proxy Manager, with a login. See docs/proxy-login.md for the settings to enter.
 services:
   nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:2.16.0
+    image: jc21/nginx-proxy-manager:2.17.0
     container_name: nginx-proxy-manager
     restart: unless-stopped
     ports:
