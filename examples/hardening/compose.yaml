@@ -6,9 +6,7 @@ services:
     container_name: knell
     restart: unless-stopped
 
-    read_only: true  # nothing in the image can be changed while it runs
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777  # the one folder knell writes, for its health marker
+    read_only: true  # nothing in the image can be changed while it runs. knell writes no file, so it needs no tmpfs
     cap_drop: [ALL]  # knell needs no Linux capabilities
     security_opt:
       - "no-new-privileges:true"  # no program inside can gain more rights than it started with

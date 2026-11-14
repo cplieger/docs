@@ -26,20 +26,6 @@ pass "knell is healthy with the full hardening profile"
 inspect() {
   docker inspect --format "$1" knell
 }
-# check_tmp_mount LINE passes when a /proc/<pid>/mounts line is the tmpfs the example asks for.
-# The kernel writes size=16m as size=16384k and omits the default mode=1777, so the mode is read with stat.
-check_tmp_mount() {
-  local mountpoint type options want
-  [ "$(wc -l <<<"$1")" -eq 1 ] || return 1
-  read -r _ mountpoint type options _ <<<"$1"
-  [ "$mountpoint" = /tmp ] && [ "$type" = tmpfs ] || return 1
-  for want in rw noexec nosuid nodev size=16384k; do
-    case ",$options," in
-      *",$want,"*) ;;
-      *) return 1 ;;
-    esac
-  done
-}
 expect() {
   local what="$1" format="$2" want="$3" got
   got="$(inspect "$format")"
@@ -54,15 +40,14 @@ expect "the user" '{{.Config.User}}' 65534:65534
 expect "the memory limit" '{{.HostConfig.Memory}}' 67108864
 expect "the process limit" '{{.HostConfig.PidsLimit}}' 64
 expect "the CPU limit" '{{.HostConfig.NanoCpus}}' 500000000
-expect "the tmpfs Docker was asked for" '{{json .HostConfig.Tmpfs}}' '{"/tmp":"rw,noexec,nosuid,nodev,size=16m,mode=1777"}'
+expect "the tmpfs Docker was asked for" '{{json .HostConfig.Tmpfs}}' null
 
-# Read the mount the kernel really made inside the container, from the host.
+# The guide says knell needs no tmpfs: read the mounts the kernel really made inside the
+# container, from the host, so the healthy verdict above came with no writable folder.
 pid="$(inspect '{{.State.Pid}}')"
-tmp_mount="$(sudo awk '$2 == "/tmp"' "/proc/$pid/mounts")"
-check_tmp_mount "$tmp_mount" || die "/tmp inside the container is: ${tmp_mount:-not mounted}"
-tmp_mode="$(sudo stat --format %a "/proc/$pid/root/tmp")"
-[ "$tmp_mode" = 1777 ] || die "/tmp inside the container has mode $tmp_mode, want 1777"
-pass "/tmp inside the container is a 16 MiB tmpfs with noexec, nosuid, nodev and mode 1777"
+tmpfs_mounts="$(sudo awk '$3 == "tmpfs" && $2 !~ "^/(dev|proc|sys)(/|$)"' "/proc/$pid/mounts")"
+[ -z "$tmpfs_mounts" ] || die "the container has a tmpfs outside /dev, /proc and /sys: $tmpfs_mounts"
+pass "knell is healthy on a read-only root with no tmpfs of its own"
 expect "the port binding" '{{json .HostConfig.PortBindings}}' '{"9190/tcp":[{"HostIp":"127.0.0.1","HostPort":"9190"}]}'
 
 beat() {

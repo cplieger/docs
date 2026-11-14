@@ -17,9 +17,7 @@ services:
     container_name: knell
     restart: unless-stopped
 
-    read_only: true  # nothing in the image can be changed while it runs
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777  # the one folder knell writes, for its health marker
+    read_only: true  # nothing in the image can be changed while it runs. knell writes no file, so it needs no tmpfs
     cap_drop: [ALL]  # knell needs no Linux capabilities
     security_opt:
       - "no-new-privileges:true"  # no program inside can gain more rights than it started with
@@ -89,7 +87,20 @@ The mounted file keeps the owner and permissions it has on your host. An image t
 
 `read_only: true` mounts the container's own files read-only, so nothing that runs inside can change the program or plant a file for the next start. Folders you mount with `volumes:` stay writable.
 
-Most images still write a few small files, such as the marker their healthcheck reads. They need a `tmpfs`, a folder kept in memory that disappears when the container stops. The cplieger Go images write their health marker in `/tmp`, so they need the `/tmp` line from the example. The options make the folder small and stop programs in it from running. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
+The cplieger Go images keep their health verdict in memory, so their health check needs no folder you add. An image that opens no port also copies that verdict to a file, `/dev/shm/<app>.healthy`, which its Docker healthcheck reads. Docker gives every container a writable `/dev/shm` in memory, also under `read_only: true`, so you add no `tmpfs` for health. knell writes no file at all, so the example has no `tmpfs` line.
+
+Folders an image keeps its data in, such as cert-converter's `/output`, pg-autodump's `/dumps` and docker-fclones-scheduler's `/cache`, are already mounts in the compose file of its README, so they stay writable. Some images also write files outside their mounts. Each of these needs a `tmpfs`, a folder kept in memory that disappears when the container stops:
+
+| Image | What it writes there | The `tmpfs` it needs |
+| --- | --- | --- |
+| [docker-fclones-scheduler](https://github.com/cplieger/docker-fclones-scheduler/blob/main/docs/hardening.md) | Its trigger socket and its home folder | `/tmp` |
+| [pg-autodump](https://github.com/cplieger/pg-autodump/blob/main/docs/hardening.md) | The run lock that keeps two runs from overlapping | `/tmp` |
+| [seadex-scout](https://github.com/cplieger/seadex-scout/blob/main/docs/hardening.md) | Its health marker, which this image still keeps in `/tmp` | `/tmp` |
+| [tautulli-remap](https://github.com/cplieger/tautulli-remap/blob/main/docs/hardening.md) | The run lock that keeps two passes from running at once | `/tmp` |
+| [web-terminal-server](https://github.com/cplieger/web-terminal-server/blob/main/docs/hardening.md) | The files of the programs its terminals run, and the shell's home folder | `/tmp` and `/root` |
+| [docker-keepalived](https://github.com/cplieger/docker-keepalived/blob/main/docs/hardening.md) and [docker-radvd](https://github.com/cplieger/docker-radvd/blob/main/docs/hardening.md) | Their PID files | `/run` |
+
+Give each `tmpfs` options that keep it small and stop programs in it from running, such as `size=16m,noexec,nosuid,nodev`, as each image's page shows. Two images do not run with a read-only root at all. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run, and docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
 
 ## Capabilities
 
@@ -137,6 +148,28 @@ A published port is reachable from every network your host is on, unless you say
 - `"127.0.0.1:9190:9190"` publishes the port to the host itself only. Use it for a page you open on the host, or for a reverse proxy that runs directly on the host.
 - Leave out `ports:` for an app that only a reverse proxy in the same compose file reaches. Containers on one compose network reach each other by service name with no published port. [Running an app behind a reverse proxy](reverse-proxy.md) shows this.
 - `"9190:9190"` publishes the port on every address of the host. Use it only for a service other devices must reach directly, and keep it on a network you trust.
+
+Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by default, and the setting moves it, as in `LISTEN_ADDR=:9300`. An app with `METRICS_LISTEN_ADDR` opens no port until you set it, to the port its README suggests, such as `METRICS_LISTEN_ADDR=:9468`. That listener serves only `/metrics` and `/healthz`. No two apps share a port, so they run side by side on one host and one network.
+
+| App | Port | The setting that changes it | What answers there |
+| --- | --- | --- | --- |
+| cert-converter | none, `9468` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
+| docker-caddy | `80`, `443` and `443/udp` | your Caddyfile | Your sites. Metrics answer on `2020` only when your Caddyfile opens that listener, and the admin API on `2019` stays on the container's own loopback |
+| docker-fclones-scheduler | none, `9469` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
+| docker-nut-upsd | `3493` and `9199` | `API_PORT` and `METRICS_PORT`. `METRICS_PORT=0` turns off `9199` | NUT clients on `3493`, `/metrics` and `/healthz` on `9199` |
+| docker-renovate-scheduler | none, `9470` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
+| docker-smtp-relay | `25` | none | Mail from your apps |
+| grelot | `9737` | none | The API, `/metrics` and `/healthz` |
+| knell | `9190` | `LISTEN_ADDR` | Beats, `/metrics` and `/healthz` |
+| marotte | `9847` | none | The web page and `/api/health` |
+| pg-autodump | `9472` | `LISTEN_ADDR` | `POST /dump`, `/metrics` and `/healthz` |
+| plex-exporter | `9594` | `LISTEN_ADDR` | `/metrics` and `/healthz` |
+| plex-language-sync | none, `9471` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
+| subflux | `8374` | none | The web page, `/metrics` and `/api/health` |
+| web-terminal-kiro | `9848` | `LISTEN_ADDR` | The web page and `/healthz` |
+| web-terminal-server | `7681` | `LISTEN_ADDR` | The web page and `/healthz` |
+
+For an app with no setting, publish another host port instead, such as `"9300:9737"`. docker-age, docker-keepalived, docker-radvd, forge-scout and tautulli-remap open no port.
 
 An app's `/metrics` page answers without a login. Let your scraper reach it on the `monitoring` network, as [Reaching an app's metrics page](monitoring.md#reaching-an-apps-metrics-page) shows, rather than through a published port.
 
