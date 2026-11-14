@@ -403,7 +403,7 @@ The new `compose.yaml` names the stack's network `monitoring`, so `docker compos
 
 Every cplieger app that ships alert rules keeps them in its repository's `alerts/` folder. `alerts/logql.yaml` holds the log rules for Loki, and `alerts/promql.yaml` holds the metric rules for Prometheus. Each file loads in only one of the two, so put each in its own folder. A few apps with one or two rules show them in their `docs/monitoring.md` page instead. Copy that block into a new file in `loki/rules/fake`, such as `loki/rules/fake/forge-scout.yaml`. Metric rules load into Prometheus, as [Loading metric alert rules](#loading-metric-alert-rules) explains. The app's README links its monitoring page, which explains each rule.
 
-An app that ships both files gives them one of two roles, and the first lines of each file say which. Alternatives cover the same faults, one file from the metrics and the other from the log. A few alerts exist in only one of the two, and the first lines of each file name them. Load one of the two and never both, or each fault alerts twice. On the starting stack, load `promql.yaml`, unless its first lines say otherwise for your settings. cert-converter, docker-fclones-scheduler, docker-renovate-scheduler, pg-autodump and plex-language-sync ship alternatives.
+An app that ships both files gives them one of two roles, and the first lines of each file say which. Alternatives cover the same faults, one file from the metrics and the other from the log. A few alerts exist in only one of the two, and the first lines of most files name them. Load one of the two and never both, or each fault alerts twice. On the starting stack, load `promql.yaml`, unless its first lines say otherwise for your settings. cert-converter, docker-fclones-scheduler, docker-renovate-scheduler, pg-autodump and plex-language-sync ship alternatives.
 
 Complements hold different alerts, so load both, each into its own ruler. docker-caddy and knell ship complements. docker-nut-upsd's `logql.yaml` holds one group of each kind. Load its `nut-upsd-events` group always, and its `nut-upsd-state` group only in place of `promql.yaml`.
 
@@ -971,8 +971,8 @@ Apps with a dashboard attach `grafana-dashboard.json` to every release. These ap
 | grelot | Prometheus, and Loki for the message and activity panels |
 | knell | Prometheus |
 | pg-autodump | Prometheus |
-| plex-exporter | Prometheus. The menu arrives set to a source named Mimir, so pick your Prometheus source in it |
+| plex-exporter | Prometheus |
 
-Run `bash fetch.sh <repository> dashboard` to save it in `grafana/dashboards`, and Grafana loads it within a minute. Each dashboard has a data source menu at the top. Every dashboard but plex-exporter's works with the provisioned data sources as they are. The dashboards need Grafana 13.2 or later, which the compose file above runs.
+Run `bash fetch.sh <repository> dashboard` to save it in `grafana/dashboards`, and Grafana loads it within a minute. Each dashboard has a data source menu at the top and works with the provisioned data sources as they are. The dashboards need Grafana 13.2 or later, which the compose file above runs.
 
 To import one by hand instead, download `grafana-dashboard.json` from the app's latest GitHub release. In Grafana, open **Dashboards**, then **New**, then **Import**, and upload the file.
