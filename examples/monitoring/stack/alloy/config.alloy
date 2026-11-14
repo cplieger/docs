@@ -44,7 +44,7 @@ prometheus.exporter.blackbox "apps" {
 
 	target {
 		name    = "plex-exporter"
-		address = "http://plex-exporter:9594/api/health"
+		address = "http://plex-exporter:9594/healthz"
 		module  = "http_2xx"
 		labels  = {"container" = "plex-exporter"}
 	}
