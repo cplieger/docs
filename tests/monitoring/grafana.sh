@@ -71,6 +71,7 @@ prom_query() {
     | jq --exit-status '.data.result | length > 0' >/dev/null
 }
 wait_for 180 "Alloy scrapes plex-exporter, which runs in its own compose project, into Prometheus" prom_query 'up{job="plex-exporter"} == 1'
+wait_for 180 "Alloy's probe of plex-exporter's health page succeeds" prom_query 'probe_success{container="plex-exporter"} == 1'
 
 prom_rules() {
   curl -fsS http://127.0.0.1:9090/api/v1/rules \
