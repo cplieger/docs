@@ -100,7 +100,7 @@ Folders an image keeps its data in, such as cert-converter's `/output`, pg-autod
 | [web-terminal-server](https://github.com/cplieger/web-terminal-server/blob/main/docs/hardening.md) | The files of the programs its terminals run, and the shell's home folder | `/tmp` and `/root` |
 | [docker-keepalived](https://github.com/cplieger/docker-keepalived/blob/main/docs/hardening.md) and [docker-radvd](https://github.com/cplieger/docker-radvd/blob/main/docs/hardening.md) | Their PID files | `/run` |
 
-Give each `tmpfs` options that keep it small and stop programs in it from running, such as `size=16m,noexec,nosuid,nodev`, as each image's page shows. Two images do not run with a read-only root at all. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run, and docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
+Give each `tmpfs` options that keep it small and stop programs in it from running, such as `size=16m,noexec,nosuid,nodev`, as each image's page shows. Three images do not run with a read-only root at all. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run. docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. docker-smtp-relay does the same with its Postfix configuration in `/etc/postfix`. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
 
 ## Capabilities
 
