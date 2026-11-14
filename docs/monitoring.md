@@ -379,7 +379,7 @@ Earlier versions of this guide started with Alloy, Loki and Alertmanager only. T
 | On a stack with Loki and no Prometheus | Apps |
 | --- | --- |
 | Every alert the app ships | docker-keepalived, docker-radvd, docker-smtp-relay, forge-scout, seadex-scout |
-| Every alert in `alerts/logql.yaml`, the app's alternative to its metric rules. The alert for an app that stops answering is a metric rule, and a log rule tells you instead when the app's runs stop | cert-converter, docker-fclones-scheduler, docker-renovate-scheduler, pg-autodump, plex-language-sync |
+| The alerts of `alerts/logql.yaml`, the app's alternative to its metric rules. A log rule tells you when the app's runs stop | cert-converter, docker-fclones-scheduler, docker-renovate-scheduler, pg-autodump, plex-language-sync |
 | The log alerts only, and no alert when the app stops answering | docker-caddy, docker-nut-upsd, knell |
 | No alert, because every rule the app ships needs Prometheus | grelot, plex-exporter, subflux |
 
@@ -403,7 +403,9 @@ The new `compose.yaml` names the stack's network `monitoring`, so `docker compos
 
 Every cplieger app that ships alert rules keeps them in its repository's `alerts/` folder. `alerts/logql.yaml` holds the log rules for Loki, and `alerts/promql.yaml` holds the metric rules for Prometheus. Each file loads in only one of the two, so put each in its own folder. A few apps with one or two rules show them in their `docs/monitoring.md` page instead. Copy that block into a new file in `loki/rules/fake`, such as `loki/rules/fake/forge-scout.yaml`. Metric rules load into Prometheus, as [Loading metric alert rules](#loading-metric-alert-rules) explains. The app's README links its monitoring page, which explains each rule.
 
-An app that ships both files gives them one of two roles, and the first lines of each file say which. Alternatives hold the same alerts, read from the metrics in one file and from the log in the other. Load one of the two and never both, or each fault alerts twice. On the starting stack, load `promql.yaml`, unless its first lines say otherwise for your settings. cert-converter, docker-fclones-scheduler, docker-renovate-scheduler, pg-autodump and plex-language-sync ship alternatives. Complements hold different alerts, so load both, each into its own ruler. docker-caddy and knell ship complements. docker-nut-upsd's `logql.yaml` holds one group of each kind: load its `nut-upsd-events` group always, and its `nut-upsd-state` group only in place of `promql.yaml`.
+An app that ships both files gives them one of two roles, and the first lines of each file say which. Alternatives hold the same alerts, read from the metrics in one file and from the log in the other. Load one of the two and never both, or each fault alerts twice. On the starting stack, load `promql.yaml`, unless its first lines say otherwise for your settings. cert-converter, docker-fclones-scheduler, docker-renovate-scheduler, pg-autodump and plex-language-sync ship alternatives.
+
+Complements hold different alerts, so load both, each into its own ruler. docker-caddy and knell ship complements. docker-nut-upsd's `logql.yaml` holds one group of each kind. Load its `nut-upsd-events` group always, and its `nut-upsd-state` group only in place of `promql.yaml`.
 
 The rule files are not in the image, so an upgrade leaves your copy as it was. When you upgrade an app, fetch its rules again for the new version. Replace the old file rather than keeping it beside the new one, because both would fire for the same fault. The release notes say when a rule file changed.
 
@@ -620,7 +622,7 @@ Apps with a metrics page ship `alerts/promql.yaml`. Run `bash fetch.sh <reposito
 
 Metric rules select on the scrape's `job` label, where the log rules select on `container`. The first lines of each rule file, or the app's monitoring page, name the job it expects, such as `pg-autodump` or `fclones`. Give your `prometheus.scrape` block that `job_name`. A rule that reads `up{job="<name>"}` alerts when the app stops answering, and with any other job name it never fires.
 
-Some apps open no port until you turn their metrics page on. cert-converter, docker-fclones-scheduler, docker-renovate-scheduler and plex-language-sync serve it once you set `METRICS_LISTEN_ADDR` to an address, such as `:9469` for docker-fclones-scheduler. docker-nut-upsd serves it by default on `METRICS_PORT`, `9199`. Add the app to the `monitoring` network, and Alloy reaches the page with no `ports:` line. [Ports](hardening.md#ports) lists each app's port. If an app ships alternatives, load `promql.yaml` or `logql.yaml`, not both.
+Some apps open no port until you turn their metrics page on. cert-converter, docker-fclones-scheduler, docker-renovate-scheduler and plex-language-sync serve it once you set `METRICS_LISTEN_ADDR`. Set it to an address such as `:9469`, the port docker-fclones-scheduler suggests. docker-nut-upsd serves it by default on `METRICS_PORT`, `9199`. Add the app to the `monitoring` network, and Alloy reaches the page with no `ports:` line. [Ports](hardening.md#ports) lists each app's port. If an app ships alternatives, load `promql.yaml` or `logql.yaml`, not both.
 
 ## Knowing that an app is alive
 
@@ -671,9 +673,9 @@ These apps serve a health page, at these addresses for the container names of th
 
 A health page answers `200` while the app does its own work, and `503` while it starts, stops or reports a fault of its own. Each app's monitoring page says what its check covers. Check the status code only, and never match the text of the answer.
 
-An app that takes a long time to start the first time can fail three probes before it is ready. web-terminal-kiro downloads kiro-cli for up to 20 minutes on its first start. docker-renovate-scheduler allows 10 minutes for its first run, pg-autodump 6 minutes for its first dump, and marotte 5 minutes. Expect the alert once then, or give that app a rule of its own with a longer `for:`.
+An app that takes a long time to start the first time can fail three probes before it is ready. web-terminal-kiro downloads kiro-cli for up to 20 minutes on its first start. docker-renovate-scheduler allows 10 minutes for its first run, and pg-autodump 6 minutes for its first dump. marotte allows 5 minutes. Expect the alert once then, or give that app a rule of its own with a longer `for:`.
 
-The other apps serve no health page that a probe from outside their container can reach. Their own Docker health check still runs, and something that watches Docker health tells you when it fails. Each app's monitoring page says what else covers it. docker-smtp-relay answers on its service port: a TCP probe of port 25 that expects the `220` greeting tells you that it serves. For docker-caddy, probe one of your own sites.
+The other apps serve no health page that a probe from outside their container can reach. Their own Docker health check still runs, and something that watches Docker health tells you when it fails. Each app's monitoring page says what else covers it. docker-smtp-relay answers on its service port, so a TCP probe of port 25 that expects the `220` greeting tells you that it serves. For docker-caddy, probe one of your own sites.
 
 If you run no metric store, an uptime prober can make the same check. Point it at the same address, pass on status `200` only, use a 5-second timeout, check every 60 seconds, alert after 3 failures in a row, and wait out the app's first start. A prober in another container calls the app by its container name, so that name must be in the app's `ALLOWED_HOSTS` too.
 
