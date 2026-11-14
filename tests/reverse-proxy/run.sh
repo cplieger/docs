@@ -111,6 +111,11 @@ pass "the app refuses a Host that ALLOWED_HOSTS does not list"
 code="$(direct app.example.com)"
 [ "$code" = 200 ] || die "the app answered $code to its own Host"
 pass "the app accepts the Host the proxy forwards"
+# The guide's Health column says /healthz needs no login, so a prober needs no password.
+code="$(compose exec -T probe curl --silent --output /dev/null --write-out '%{http_code}' \
+  --header "Host: app.example.com" http://web-terminal-server:7681/healthz)"
+[ "$code" = 200 ] || die "the app's /healthz answered $code to a request with no login"
+pass "the app's /healthz answers a request with no login"
 
 logged="$(compose logs --no-color web-terminal-server | grep 'path=/api/sessions ' | grep -o 'client_ip=[^ ]*' | tail -n 1 || true)"
 [ "$logged" = "client_ip=$CLIENT_IP" ] || die "the app logged '${logged:-no client_ip}' for /api/sessions, not client_ip=$CLIENT_IP"

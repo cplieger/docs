@@ -14,8 +14,8 @@ A reverse proxy receives the visitor's request on ports 80 and 443 and passes it
 
 | App | Port | Login | Health | WebSocket | Live updates | Largest request body |
 | --- | --- | --- | --- | --- | --- | --- |
-| web-terminal-server | 7681 | `AUTH_PASSWORD` | `/healthz`, with the login while `AUTH_PASSWORD` is set | `/ws` | `/api/sessions/events` | 64 KiB |
-| web-terminal-kiro | 9848 | none | `/api/health` | `/ws` | `/api/sessions/events` | 64 KiB |
+| web-terminal-server | 7681 | `AUTH_PASSWORD` | `/healthz`, with no login | `/ws` | `/api/sessions/events` | 64 KiB |
+| web-terminal-kiro | 9848 | none | `/healthz` | `/ws` | `/api/sessions/events` | 64 KiB |
 | marotte | 9847 | none | `/api/health` | `/api/shell/ws` | `/api/events` | 256 MiB, for a file upload |
 | subflux | 8374 | its own login page | `/api/health` | none | `/api/events` | 1 MiB |
 | knell | 9190 | `BEAT_TOKEN` for beats | `/healthz` | none | none | none, a beat's body is ignored |
