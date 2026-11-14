@@ -100,7 +100,11 @@ Folders an image keeps its data in, such as cert-converter's `/output`, pg-autod
 | [web-terminal-server](https://github.com/cplieger/web-terminal-server/blob/main/docs/hardening.md) | The files of the programs its terminals run, and the shell's home folder | `/tmp` and `/root` |
 | [docker-keepalived](https://github.com/cplieger/docker-keepalived/blob/main/docs/hardening.md) and [docker-radvd](https://github.com/cplieger/docker-radvd/blob/main/docs/hardening.md) | Their PID files | `/run` |
 
-Copy each `tmpfs` line from the image's page. It sets the folder's size and, where the image allows it, `noexec`, `nosuid` and `nodev`, which stop programs in the folder from running. Three images do not run with a read-only root at all. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run. docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. docker-smtp-relay does the same with its Postfix configuration in `/etc/postfix`. web-terminal-kiro and marotte give you a shell whose programs write to `/tmp`, and web-terminal-kiro installs the Debian packages you list into the image's own folders. Neither image's page names a read-only setup yet, so run them without `read_only: true`. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
+Under `read_only: true`, also mount a folder on docker-caddy's `/config`. Caddy saves a copy of each config it loads under `/config/caddy`, and without a mount it logs `unable to autosave config` at ERROR while it keeps serving.
+
+Copy each `tmpfs` line from the image's page. It sets the folder's size and, where the image allows it, `noexec`, `nosuid` and `nodev`, which stop programs in the folder from running. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
+
+Five images do not run with a read-only root, so run them without `read_only: true`. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run. docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. docker-smtp-relay does the same with its Postfix configuration in `/etc/postfix`. web-terminal-kiro and marotte give you a shell whose programs write to `/tmp`, and web-terminal-kiro installs the Debian packages you list into the image's own folders. Neither image's page names a read-only setup yet.
 
 ## Capabilities
 
