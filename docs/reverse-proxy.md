@@ -18,7 +18,7 @@ A reverse proxy receives the visitor's request on ports 80 and 443 and passes it
 | web-terminal-kiro | 9848 | none | `/healthz` | `/ws` | `/api/sessions/events` | 64 KiB |
 | marotte | 9847 | none | `/api/health` | `/api/shell/ws` | `/api/events` | 256 MiB, for a file upload |
 | subflux | 8374 | its own login page | `/api/health` | none | `/api/events` | 1 MiB |
-| knell | 9190 | `BEAT_TOKEN` for beats | `/healthz` | none | none | none, a beat's body is ignored |
+| knell | 9190 | `BEAT_TOKEN` for beats | `/healthz` on port 9191, which the proxy does not serve | none | none | none, a beat's body is ignored |
 
 The apps already ask a proxy not to collect their live updates, with the `X-Accel-Buffering: no` header. They also send a keep-alive message at regular intervals. Both nginx and Nginx Proxy Manager honor that header. The examples still turn off collecting in the proxy, and keep a quiet connection open longer. An app's `/metrics` page answers without a login. A scraper reaches it on the `monitoring` network, so do not route it through a proxy that faces the internet. With Caddy, put `respond /metrics 404` in the site block. plex-exporter and seadex-scout's feed need no proxy at all. They serve plain HTTP to a scraper or to Sonarr and Radarr on your network.
 

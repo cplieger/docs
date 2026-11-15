@@ -25,7 +25,8 @@ services:
       - discord_webhook_url
 
     ports:
-      - "127.0.0.1:9190:9190"  # this host only, see docs/hardening.md "Ports"
+      - "127.0.0.1:9190:9190"  # beats, from this host only, see docs/hardening.md "Ports"
+      # /healthz and /metrics answer on 9191, unpublished: a scraper on knell's network reaches knell:9191
 
 secrets:
   # Create both files before the first start. Then run "chmod 600 secrets/*" and

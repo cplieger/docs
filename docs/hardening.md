@@ -36,7 +36,8 @@ services:
       - discord_webhook_url
 
     ports:
-      - "127.0.0.1:9190:9190"  # this host only, see docs/hardening.md "Ports"
+      - "127.0.0.1:9190:9190"  # beats, from this host only, see docs/hardening.md "Ports"
+      # /healthz and /metrics answer on 9191, unpublished: a scraper on knell's network reaches knell:9191
 
 secrets:
   # Create both files before the first start. Then run "chmod 600 secrets/*" and
@@ -153,7 +154,7 @@ A published port is reachable from every network your host is on, unless you say
 - Leave out `ports:` for an app that only a reverse proxy in the same compose file reaches. Containers on one compose network reach each other by service name with no published port. [Running an app behind a reverse proxy](reverse-proxy.md) shows this.
 - `"9190:9190"` publishes the port on every address of the host. Use it only for a service other devices must reach directly, and keep it on a network you trust.
 
-Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by default, and the setting moves it, as in `LISTEN_ADDR=:9300`. An app with `METRICS_LISTEN_ADDR` opens no port until you set it, to the port its README suggests, such as `METRICS_LISTEN_ADDR=:9468`. That listener serves only `/metrics` and `/healthz`. No two apps share a port, so they run side by side on one host and one network.
+Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by default, and the setting moves it, as in `LISTEN_ADDR=:9300`. An app with `METRICS_LISTEN_ADDR` opens no port until you set it, to the port its README suggests, such as `METRICS_LISTEN_ADDR=:9468`. That listener serves only `/metrics` and `/healthz`. An app with `OPS_LISTEN_ADDR` always opens a second port for `/metrics` and `/healthz`, which you publish to your monitoring network only. No two apps share a port, so they run side by side on one host and one network.
 
 | App | Port | The setting that changes it | What answers there |
 | --- | --- | --- | --- |
@@ -164,7 +165,7 @@ Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by
 | docker-renovate-scheduler | none, `9470` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
 | docker-smtp-relay | `25` | none | Mail from your apps |
 | grelot | `9737` | none | The API, `/metrics` and `/healthz` |
-| knell | `9190` | `LISTEN_ADDR` | Beats, `/metrics` and `/healthz` |
+| knell | `9190` and `9191` | `LISTEN_ADDR` and `OPS_LISTEN_ADDR` | Beats on `9190`, `/metrics` and `/healthz` on `9191` |
 | marotte | `9847` | none | The web page and `/api/health` |
 | pg-autodump | `9472` | `LISTEN_ADDR` | `POST /dump`, `/metrics` and `/healthz` |
 | plex-exporter | `9594` | `LISTEN_ADDR` | `/metrics` and `/healthz` |
