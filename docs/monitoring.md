@@ -968,12 +968,16 @@ Apps with a dashboard attach `grafana-dashboard.json` to every release. These ap
 
 | App | Data source |
 | --- | --- |
+| cert-converter | Prometheus |
+| docker-fclones-scheduler | Prometheus |
 | docker-nut-upsd | Prometheus |
+| docker-renovate-scheduler | Prometheus |
 | forge-scout | Loki |
 | grelot | Prometheus, and Loki for the message and activity panels |
 | knell | Prometheus |
 | pg-autodump | Prometheus |
 | plex-exporter | Prometheus |
+| plex-language-sync | Prometheus |
 
 Run `bash fetch.sh <repository> dashboard` to save it in `grafana/dashboards`, and Grafana loads it within a minute. Each dashboard has a data source menu at the top and works with the provisioned data sources as they are. The dashboards need Grafana 13.2 or later, which the compose file above runs.
 
