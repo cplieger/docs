@@ -169,6 +169,7 @@ Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by
 | pg-autodump | `9472` | `LISTEN_ADDR` | `POST /dump`, `/metrics` and `/healthz` |
 | plex-exporter | `9594` | `LISTEN_ADDR` | `/metrics` and `/healthz` |
 | plex-language-sync | none, `9471` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
+| seadex-scout | none, `9118` once the indexer is set up | none | The Torznab feed |
 | subflux | `8374` | none | The web page, `/metrics` and `/api/health` |
 | web-terminal-kiro | `9848` | `LISTEN_ADDR` | The web page and `/healthz` |
 | web-terminal-server | `7681` | `LISTEN_ADDR` | The web page and `/healthz` |
