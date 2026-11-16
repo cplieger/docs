@@ -29,20 +29,21 @@ services:
     environment:
       BEATS: "nightly-backup:26h"  # one id:deadline pair per job you watch
       NODE_NAME: "server-1"
-      BEAT_TOKEN_FILE: "/run/secrets/beat_token"  # knell reads the token from this file
+      BEAT_TOKENS_FILE: "/run/secrets/beat_tokens"  # one <beats>:<token> line per token, read from this file
       DISCORD_WEBHOOK_URL_FILE: "/run/secrets/discord_webhook_url"
     secrets:
-      - beat_token
+      - beat_tokens
       - discord_webhook_url
 
     ports:
-      - "127.0.0.1:9190:9190"  # this host only, see docs/hardening.md "Ports"
+      - "127.0.0.1:9190:9190"  # beats, from this host only, see docs/hardening.md "Ports"
+      # /healthz and /metrics answer on 9191, unpublished: a scraper on knell's network reaches knell:9191
 
 secrets:
   # Create both files before the first start. Then run "chmod 600 secrets/*" and
   # "sudo chown 65534:65534 secrets/*", so only knell's user can read them.
-  beat_token:
-    file: ./secrets/beat_token
+  beat_tokens:
+    file: ./secrets/beat_tokens
   discord_webhook_url:
     file: ./secrets/discord_webhook_url
 ```
@@ -52,7 +53,7 @@ secrets:
 To run it:
 
 1. Create a `secrets` folder next to `compose.yaml`.
-2. Run `openssl rand -hex 16 > secrets/beat_token` to make a token.
+2. Run `echo "nightly-backup:$(openssl rand -hex 16)" > secrets/beat_tokens` to give the `nightly-backup` beat its own token. Each beat you add to `BEATS` needs a line of its own, or a line that names it with the others it shares a token with, such as `nightly-backup+offsite-copy:<token>`.
 3. Put your Discord webhook address in `secrets/discord_webhook_url`, on one line.
 4. Run `chmod 600 secrets/*`, then `sudo chown 65534:65534 secrets/*`. knell runs as user 65534, so it can read both files and no other account on the host can, apart from root. To change a file later, edit it with `sudo`.
 5. Run `docker compose up -d`, then `docker compose ps`. The container should show `healthy` within a minute.
@@ -63,12 +64,12 @@ The port is published to this host only. If backup jobs on other machines send b
 
 Anyone who can run `docker inspect` on the container sees every value set under `environment:`. The values also end up in every copy or backup of your compose file. A Docker secret keeps it in a separate file instead. Compose mounts each file listed under `secrets:` into the container at `/run/secrets/<name>`, read-only, as [Docker's secrets guide](https://docs.docker.com/compose/how-tos/use-secrets/) describes.
 
-Some images read a secret from such a file when you append `_FILE` to the variable's name and set it to the path. knell reads `BEAT_TOKEN_FILE` instead of `BEAT_TOKEN`. When both are set, the `_FILE` variable wins. The app reads the file once, when it starts, and removes one trailing line break. The file can hold up to 1 MiB, and its path must be a plain path with no `..` in it. The app's README lists which of its variables accept `_FILE`.
+Some images read a secret from such a file when you append `_FILE` to the variable's name and set it to the path. knell reads `BEAT_TOKENS_FILE` instead of `BEAT_TOKENS`. When both are set, the `_FILE` variable wins. The app reads the file once, when it starts, and removes one trailing line break. The file can hold up to 1 MiB, and its path must be a plain path with no `..` in it. The app's README lists which of its variables accept `_FILE`.
 
 | Image | Variables that accept `_FILE` |
 | --- | --- |
 | cert-converter | `PFX_PASSWORD`, `INPUT_PFX_PASSWORD` |
-| knell | `BEAT_TOKEN`, `DISCORD_WEBHOOK_URL` |
+| knell | `BEAT_TOKENS`, `DISCORD_WEBHOOK_URL` |
 | plex-exporter | `PLEX_TOKEN` |
 | plex-language-sync | `PLEX_URL`, `PLEX_TOKEN` |
 | tautulli-remap | `TAUTULLI_API_KEY`, `PLEX_TOKEN` |
@@ -153,7 +154,7 @@ A published port is reachable from every network your host is on, unless you say
 - Leave out `ports:` for an app that only a reverse proxy in the same compose file reaches. Containers on one compose network reach each other by service name with no published port. [Running an app behind a reverse proxy](reverse-proxy.md) shows this.
 - `"9190:9190"` publishes the port on every address of the host. Use it only for a service other devices must reach directly, and keep it on a network you trust.
 
-Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by default, and the setting moves it, as in `LISTEN_ADDR=:9300`. An app with `METRICS_LISTEN_ADDR` opens no port until you set it, to the port its README suggests, such as `METRICS_LISTEN_ADDR=:9468`. That listener serves only `/metrics` and `/healthz`. No two apps share a port, so they run side by side on one host and one network.
+Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by default, and the setting moves it, as in `LISTEN_ADDR=:9300`. An app with `METRICS_LISTEN_ADDR` opens no port until you set it, to the port its README suggests, such as `METRICS_LISTEN_ADDR=:9468`. That listener serves only `/metrics` and `/healthz`. An app with `OPS_LISTEN_ADDR` always opens a second port for `/metrics` and `/healthz`, which you publish to your monitoring network only. No two apps share a port, so they run side by side on one host and one network.
 
 | App | Port | The setting that changes it | What answers there |
 | --- | --- | --- | --- |
@@ -164,7 +165,7 @@ Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by
 | docker-renovate-scheduler | none, `9470` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
 | docker-smtp-relay | `25` | none | Mail from your apps |
 | grelot | `9737` | none | The API, `/metrics` and `/healthz` |
-| knell | `9190` | `LISTEN_ADDR` | Beats, `/metrics` and `/healthz` |
+| knell | `9190` and `9191` | `LISTEN_ADDR` and `OPS_LISTEN_ADDR` | Beats on `9190`, `/metrics` and `/healthz` on `9191` |
 | marotte | `9847` | none | The web page and `/api/health` |
 | pg-autodump | `9472` | `LISTEN_ADDR` | `POST /dump`, `/metrics` and `/healthz` |
 | plex-exporter | `9594` | `LISTEN_ADDR` | `/metrics` and `/healthz` |

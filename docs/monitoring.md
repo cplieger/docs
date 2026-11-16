@@ -662,7 +662,7 @@ These apps serve a health page, at these addresses for the container names of th
 | docker-nut-upsd | `http://nut-upsd:9199/healthz` | With `METRICS_PORT=0`, probe TCP port 3493 instead, which proves only that `upsd` accepts connections |
 | docker-renovate-scheduler | `http://renovate:9470/healthz` | Set `METRICS_LISTEN_ADDR` to `:9470` |
 | grelot | `http://grelot:9737/healthz` | |
-| knell | `http://knell:9190/healthz` | Add `knell` to `ALLOWED_HOSTS` if you set it |
+| knell | `http://knell:9191/healthz` | Add `knell` to `ALLOWED_HOSTS` if you set it |
 | marotte | `http://marotte:9847/api/health` | Add `marotte` to `ALLOWED_HOSTS` if you set it |
 | pg-autodump | `http://pg-autodump:9472/healthz` | |
 | plex-exporter | `http://plex-exporter:9594/healthz` | |
