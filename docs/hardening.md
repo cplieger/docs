@@ -29,10 +29,10 @@ services:
     environment:
       BEATS: "nightly-backup:26h"  # one id:deadline pair per job you watch
       NODE_NAME: "server-1"
-      BEAT_TOKEN_FILE: "/run/secrets/beat_token"  # knell reads the token from this file
+      BEAT_TOKENS_FILE: "/run/secrets/beat_tokens"  # one <beats>:<token> line per token, read from this file
       DISCORD_WEBHOOK_URL_FILE: "/run/secrets/discord_webhook_url"
     secrets:
-      - beat_token
+      - beat_tokens
       - discord_webhook_url
 
     ports:
@@ -42,8 +42,8 @@ services:
 secrets:
   # Create both files before the first start. Then run "chmod 600 secrets/*" and
   # "sudo chown 65534:65534 secrets/*", so only knell's user can read them.
-  beat_token:
-    file: ./secrets/beat_token
+  beat_tokens:
+    file: ./secrets/beat_tokens
   discord_webhook_url:
     file: ./secrets/discord_webhook_url
 ```
@@ -53,7 +53,7 @@ secrets:
 To run it:
 
 1. Create a `secrets` folder next to `compose.yaml`.
-2. Run `openssl rand -hex 16 > secrets/beat_token` to make a token.
+2. Run `echo "nightly-backup:$(openssl rand -hex 16)" > secrets/beat_tokens` to give the `nightly-backup` beat its own token. Each beat you add to `BEATS` needs a line of its own, or a line that names it with the others it shares a token with, such as `nightly-backup+offsite-copy:<token>`.
 3. Put your Discord webhook address in `secrets/discord_webhook_url`, on one line.
 4. Run `chmod 600 secrets/*`, then `sudo chown 65534:65534 secrets/*`. knell runs as user 65534, so it can read both files and no other account on the host can, apart from root. To change a file later, edit it with `sudo`.
 5. Run `docker compose up -d`, then `docker compose ps`. The container should show `healthy` within a minute.
@@ -64,12 +64,12 @@ The port is published to this host only. If backup jobs on other machines send b
 
 Anyone who can run `docker inspect` on the container sees every value set under `environment:`. The values also end up in every copy or backup of your compose file. A Docker secret keeps it in a separate file instead. Compose mounts each file listed under `secrets:` into the container at `/run/secrets/<name>`, read-only, as [Docker's secrets guide](https://docs.docker.com/compose/how-tos/use-secrets/) describes.
 
-Some images read a secret from such a file when you append `_FILE` to the variable's name and set it to the path. knell reads `BEAT_TOKEN_FILE` instead of `BEAT_TOKEN`. When both are set, the `_FILE` variable wins. The app reads the file once, when it starts, and removes one trailing line break. The file can hold up to 1 MiB, and its path must be a plain path with no `..` in it. The app's README lists which of its variables accept `_FILE`.
+Some images read a secret from such a file when you append `_FILE` to the variable's name and set it to the path. knell reads `BEAT_TOKENS_FILE` instead of `BEAT_TOKENS`. When both are set, the `_FILE` variable wins. The app reads the file once, when it starts, and removes one trailing line break. The file can hold up to 1 MiB, and its path must be a plain path with no `..` in it. The app's README lists which of its variables accept `_FILE`.
 
 | Image | Variables that accept `_FILE` |
 | --- | --- |
 | cert-converter | `PFX_PASSWORD`, `INPUT_PFX_PASSWORD` |
-| knell | `BEAT_TOKEN`, `DISCORD_WEBHOOK_URL` |
+| knell | `BEAT_TOKENS`, `DISCORD_WEBHOOK_URL` |
 | plex-exporter | `PLEX_TOKEN` |
 | plex-language-sync | `PLEX_URL`, `PLEX_TOKEN` |
 | tautulli-remap | `TAUTULLI_API_KEY`, `PLEX_TOKEN` |

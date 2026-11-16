@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Boots examples/hardening, checks Docker applied every option, and proves knell
-# read its token from the secret file.
+# read the beat's token from the secret file.
 set -euo pipefail
 # shellcheck source-path=SCRIPTDIR
 source "$(dirname "$0")/../lib.sh"
@@ -8,7 +8,9 @@ source "$(dirname "$0")/../lib.sh"
 use_example hardening examples/hardening
 
 mkdir -p "$WORK/secrets"
-openssl rand -hex 16 >"$WORK/secrets/beat_token"
+token="$(openssl rand -hex 16)"
+# The guide's step 2, with the token kept for the beat below.
+echo "nightly-backup:$token" >"$WORK/secrets/beat_tokens"
 # A well-formed address that is never called: knell posts only when a beat misses its 26 h deadline.
 printf 'https://discord.com/api/webhooks/0/example\n' >"$WORK/secrets/discord_webhook_url"
 # The guide's step 4, as written.
@@ -54,9 +56,9 @@ beat() {
   curl --silent --output /dev/null --write-out '%{http_code}' --request POST \
     --header "Authorization: Bearer $1" http://127.0.0.1:9190/beat/nightly-backup
 }
-code="$(beat "$(sudo cat "$WORK/secrets/beat_token")")"
+code="$(beat "$token")"
 [ "$code" = 200 ] || die "a beat with the token from the secret file got $code"
-pass "knell accepted the token it read from /run/secrets/beat_token"
+pass "knell accepted the token it read from /run/secrets/beat_tokens"
 code="$(beat wrong-token-of-sixteen-bytes)"
 [ "$code" = 401 ] || die "a beat with a wrong token got $code"
 pass "knell refuses a wrong token"
