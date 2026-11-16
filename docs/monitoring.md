@@ -978,6 +978,7 @@ Apps with a dashboard attach `grafana-dashboard.json` to every release. These ap
 | pg-autodump | Prometheus |
 | plex-exporter | Prometheus |
 | plex-language-sync | Prometheus |
+| seadex-scout | Loki |
 
 Run `bash fetch.sh <repository> dashboard` to save it in `grafana/dashboards`, and Grafana loads it within a minute. Each dashboard has a data source menu at the top and works with the provisioned data sources as they are. The dashboards need Grafana 13.2 or later, which the compose file above runs.
 
