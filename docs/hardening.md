@@ -99,13 +99,17 @@ Folders an image keeps its data in, such as cert-converter's `/output`, pg-autod
 | [seadex-scout](https://github.com/cplieger/seadex-scout/blob/main/docs/hardening.md) | Its health marker, which this image still keeps in `/tmp` | `/tmp` |
 | [tautulli-remap](https://github.com/cplieger/tautulli-remap/blob/main/docs/hardening.md) | The run lock that keeps two passes from running at once | `/tmp` |
 | [web-terminal-server](https://github.com/cplieger/web-terminal-server/blob/main/docs/hardening.md) | The files of the programs its terminals run, and the shell's home folder | `/tmp` and `/root` |
+| [marotte](https://github.com/cplieger/marotte/blob/dev/docs/hardening.md#read-only-root) | kiro-cli's logs and what its shell and agent programs write there. As root, also the file that puts the tools folder on the shell's `PATH` | `/tmp`, and `/etc/profile.d` when it runs as root |
+| [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/dev/docs/hardening.md#read-only-root) | Its tab titles and what the programs in its tabs write there | `/tmp` |
 | [docker-keepalived](https://github.com/cplieger/docker-keepalived/blob/main/docs/hardening.md) and [docker-radvd](https://github.com/cplieger/docker-radvd/blob/main/docs/hardening.md) | Their PID files | `/run` |
 
 Under `read_only: true`, also mount a folder on docker-caddy's `/config`. Caddy saves a copy of each config it loads under `/config/caddy`, and without a mount it logs `unable to autosave config` at ERROR while it keeps serving.
 
-Copy each `tmpfs` line from the image's page. It sets the folder's size and, where the image allows it, `noexec`, `nosuid` and `nodev`, which stop programs in the folder from running. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
+Copy each `tmpfs` line from the image's page. It sets the folder's size and, where the image allows them, `noexec`, `nosuid` and `nodev`. `noexec` stops programs in the folder from running, `nosuid` stops a program there from gaining its owner's rights, and `nodev` stops device files there from working. If an image logs `read-only file system` after you add `read_only: true`, its `docs/hardening.md` names the folder it writes to.
 
-Five images do not run with a read-only root, so run them without `read_only: true`. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run. docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. docker-smtp-relay does the same with its Postfix configuration in `/etc/postfix`. web-terminal-kiro and marotte give you a shell whose programs write to `/tmp`, and web-terminal-kiro installs the Debian packages you list into the image's own folders. Neither image's page names a read-only setup yet.
+Three images do not run with a read-only root, so run them without `read_only: true`. docker-renovate-scheduler installs the tools a repository needs into `/opt/containerbase` during a run. docker-nut-upsd writes its generated NUT configuration into `/etc/nut` at each start. docker-smtp-relay does the same with its Postfix configuration in `/etc/postfix`.
+
+marotte and web-terminal-kiro run with a read-only root until you install Debian packages through their tools engine. apt and dpkg write those packages into the image's own folders, such as `/usr` and `/var/lib/dpkg`, which no `tmpfs` can stand in for. Leave out `read_only: true` while you use one. The [marotte](https://github.com/cplieger/marotte/blob/dev/docs/hardening.md#read-only-root) and [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/dev/docs/hardening.md#read-only-root) pages give the reason in full.
 
 ## Capabilities
 
@@ -124,7 +128,7 @@ Each image sets the user it runs as. `user:` in the compose file overrides it. S
 | 65532 | [cert-converter](https://github.com/cplieger/cert-converter/blob/main/docs/hardening.md), [docker-age](https://github.com/cplieger/docker-age/blob/main/docs/hardening.md), [docker-fclones-scheduler](https://github.com/cplieger/docker-fclones-scheduler/blob/main/docs/hardening.md), [forge-scout](https://github.com/cplieger/forge-scout/blob/main/docs/hardening.md), [pg-autodump](https://github.com/cplieger/pg-autodump/blob/main/docs/hardening.md), [plex-exporter](https://github.com/cplieger/plex-exporter/blob/main/docs/hardening.md), [plex-language-sync](https://github.com/cplieger/plex-language-sync/blob/main/docs/hardening.md), [seadex-scout](https://github.com/cplieger/seadex-scout/blob/main/docs/hardening.md), [subflux](https://github.com/cplieger/subflux/blob/main/docs/hardening.md), [tautulli-remap](https://github.com/cplieger/tautulli-remap/blob/main/docs/hardening.md) |
 | 65534 | [knell](https://github.com/cplieger/knell/blob/main/docs/hardening.md) |
 | 12021 | [docker-renovate-scheduler](https://github.com/cplieger/docker-renovate-scheduler/blob/main/docs/hardening.md) |
-| root | [docker-caddy](https://github.com/cplieger/docker-caddy/blob/main/docs/hardening.md), [docker-keepalived](https://github.com/cplieger/docker-keepalived/blob/main/docs/hardening.md), [docker-nut-upsd](https://github.com/cplieger/docker-nut-upsd/blob/main/docs/hardening.md), [docker-radvd](https://github.com/cplieger/docker-radvd/blob/main/docs/hardening.md), [docker-smtp-relay](https://github.com/cplieger/docker-smtp-relay/blob/main/docs/hardening.md), [marotte](https://github.com/cplieger/marotte/blob/main/docs/hardening.md), [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/main/docs/hardening.md), [web-terminal-server](https://github.com/cplieger/web-terminal-server/blob/main/docs/hardening.md) |
+| root | [docker-caddy](https://github.com/cplieger/docker-caddy/blob/main/docs/hardening.md), [docker-keepalived](https://github.com/cplieger/docker-keepalived/blob/main/docs/hardening.md), [docker-nut-upsd](https://github.com/cplieger/docker-nut-upsd/blob/main/docs/hardening.md), [docker-radvd](https://github.com/cplieger/docker-radvd/blob/main/docs/hardening.md), [docker-smtp-relay](https://github.com/cplieger/docker-smtp-relay/blob/main/docs/hardening.md), [marotte](https://github.com/cplieger/marotte/blob/dev/docs/hardening.md), [web-terminal-kiro](https://github.com/cplieger/web-terminal-kiro/blob/dev/docs/hardening.md), [web-terminal-server](https://github.com/cplieger/web-terminal-server/blob/main/docs/hardening.md) |
 
 Each name links to the image's `docs/hardening.md` page, which gives the profile it supports. The root images need root for their job, such as managing network interfaces, reaching USB devices, or giving a terminal full access. Their pages say what each one does as root.
 
@@ -166,7 +170,7 @@ Each app listens on the port in this table. An app with `LISTEN_ADDR` listens by
 | docker-smtp-relay | `25` | none | Mail from your apps |
 | grelot | `9737` | none | The API, `/metrics` and `/healthz` |
 | knell | `9190` and `9191` | `LISTEN_ADDR` and `OPS_LISTEN_ADDR` | Beats on `9190`, `/metrics` and `/healthz` on `9191` |
-| marotte | `9847` | none | The web page and `/api/health` |
+| marotte | `9847` | `LISTEN_ADDR` | The web page, `/metrics` and `/healthz` |
 | pg-autodump | `9472` | `LISTEN_ADDR` | `POST /dump`, `/metrics` and `/healthz` |
 | plex-exporter | `9594` | `LISTEN_ADDR` | `/metrics` and `/healthz` |
 | plex-language-sync | none, `9471` once set | `METRICS_LISTEN_ADDR` | `/metrics` and `/healthz` |
