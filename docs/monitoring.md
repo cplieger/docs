@@ -663,11 +663,11 @@ These apps serve a health page, at these addresses for the container names of th
 | docker-renovate-scheduler | `http://renovate:9470/healthz` | Set `METRICS_LISTEN_ADDR` to `:9470` |
 | grelot | `http://grelot:9737/healthz` | |
 | knell | `http://knell:9191/healthz` | Add `knell` to `ALLOWED_HOSTS` if you set it |
-| marotte | `http://marotte:9847/api/health` | Add `marotte` to `ALLOWED_HOSTS` if you set it |
+| marotte | `http://marotte:9847/healthz` | Add `marotte` to `ALLOWED_HOSTS` if you set it |
 | pg-autodump | `http://pg-autodump:9472/healthz` | |
 | plex-exporter | `http://plex-exporter:9594/healthz` | |
 | plex-language-sync | `http://plex-language-sync:9471/healthz` | Set `METRICS_LISTEN_ADDR` to `:9471` |
-| subflux | `http://subflux:8374/api/health` | Add `subflux` to `allowed_hosts` if you set it |
+| subflux | `http://subflux:8375/healthz` | |
 | web-terminal-kiro | `http://web-terminal-kiro:9848/healthz` | Add `web-terminal-kiro` to `ALLOWED_HOSTS` if you set it |
 | web-terminal-server | `http://web-terminal-server:7681/healthz` | Add `web-terminal-server` to `ALLOWED_HOSTS` if you set it. The page answers without the `AUTH_PASSWORD` login |
 
