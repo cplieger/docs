@@ -368,7 +368,7 @@ Nginx Proxy Manager is nginx with a web page for its settings. It already passes
 # web-terminal-server behind Nginx Proxy Manager. See docs/reverse-proxy.md for the settings to enter.
 services:
   nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:2.17.0
+    image: jc21/nginx-proxy-manager:2.17.1
     container_name: nginx-proxy-manager
     restart: unless-stopped
     ports:
