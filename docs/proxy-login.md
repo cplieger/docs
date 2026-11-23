@@ -188,7 +188,7 @@ server {
 # web-terminal-kiro behind nginx, with a login. See docs/proxy-login.md.
 services:
   nginx:
-    image: nginx:1.31.9
+    image: nginx:1.31.10
     container_name: nginx
     restart: unless-stopped
     ports:
