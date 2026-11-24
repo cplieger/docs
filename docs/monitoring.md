@@ -42,7 +42,7 @@ services:
       - "127.0.0.1:3100:3100"  # Loki has no login, so only this host can reach it
 
   alertmanager:
-    image: prom/alertmanager:v0.35.0
+    image: prom/alertmanager:v0.35.1
     container_name: alertmanager
     restart: unless-stopped
     command:
@@ -827,7 +827,7 @@ services:
       - "127.0.0.1:3100:3100"  # Loki has no login, so only this host can reach it
 
   alertmanager:
-    image: prom/alertmanager:v0.35.0
+    image: prom/alertmanager:v0.35.1
     container_name: alertmanager
     restart: unless-stopped
     command:
