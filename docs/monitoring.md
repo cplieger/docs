@@ -868,7 +868,7 @@ services:
       - "127.0.0.1:9090:9090"  # Prometheus has no login, so only this host can reach it
 
   grafana:
-    image: grafana/grafana:13.3.1
+    image: grafana/grafana:13.3.2
     container_name: grafana
     restart: unless-stopped
     environment:
